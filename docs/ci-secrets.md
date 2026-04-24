@@ -20,7 +20,7 @@ bootstrap GCP project.
 
 ```bash
 # 1) Create GCS bucket for TF state (one-off; outside TF).
-gsutil mb -p $BOOTSTRAP_PROJECT -l us-central1 gs://msm-rpc-tf-state-staging
+gsutil mb -p $BOOTSTRAP_PROJECT -l europe-west2 gs://msm-rpc-tf-state-staging
 
 # 2) Apply WIF + initial infra.
 cd infra/terraform

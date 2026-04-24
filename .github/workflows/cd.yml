@@ -90,9 +90,9 @@ jobs:
 
   deploy-staging:
     needs: build-push
-    if: github.ref == 'refs/heads/main' || github.event.inputs.env == 'staging'
+    # Staging runs on: tag push, push to main, or manual dispatch (any env).
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    environment: staging
     steps:
       - uses: actions/checkout@v4
       - uses: google-github-actions/auth@v2
@@ -112,11 +112,17 @@ jobs:
           TF_VAR_image_breaker:        ${{ needs.build-push.outputs.image_breaker }}
           TF_VAR_image_ml_pipeline:    ${{ needs.build-push.outputs.image_ml_pipeline }}
         run: |
+          # TF_VAR_region is set in job env. Bootstrap created the bucket
+          # with a region prefix; access requires a quota project.
           terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
           terraform apply -auto-approve -lock-timeout=5m
 
       - name: post-deploy smoke
-        run: bash ops/smoke.sh "${{ secrets.SCORING_API_URL_STAGING }}"
+        working-directory: infra/terraform
+        run: |
+          URL=$(terraform output -raw scoring_api_url)
+          echo "scoring-api: $URL"
+          bash ../../ops/smoke.sh "$URL"
 
   deploy-prod:
     needs: [build-push, deploy-staging]

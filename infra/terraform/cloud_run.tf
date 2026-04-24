@@ -24,7 +24,7 @@ locals {
 resource "google_cloud_run_v2_service" "scoring_api" {
   name     = "scoring-api-${var.env}"
   location = var.region
-  ingress  = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  ingress  = "INGRESS_TRAFFIC_ALL"  # tighten to INTERNAL_LOAD_BALANCER once an LB is provisioned
 
   template {
     service_account = google_service_account.scoring_api.email
@@ -187,6 +187,16 @@ resource "google_cloud_scheduler_job" "bounds_calibration" {
       service_account_email = google_service_account.scoring_api.email
     }
   }
+}
+
+output "scoring_api_url" {
+  description = "Public URL of the deployed scoring-api service."
+  value       = google_cloud_run_v2_service.scoring_api.uri
+}
+
+output "reconciliation_url" {
+  description = "Public URL of the deployed reconciliation service."
+  value       = google_cloud_run_v2_service.reconciliation.uri
 }
 
 # ml-pipeline runs on Cloud Run Jobs (training is not a long-lived service).

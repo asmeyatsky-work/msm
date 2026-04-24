@@ -17,7 +17,7 @@
 set -euo pipefail
 
 : "${PROJECT:?set PROJECT=<gcp-project-id>}"
-: "${REGION:=us-central1}"
+: "${REGION:=europe-west2}"
 : "${ENV:=staging}"
 
 echo "==> 0/4 Enable required APIs"
