@@ -75,6 +75,16 @@ resource "google_cloud_run_v2_service" "scoring_api" {
           }
         }
       }
+      env {
+        # Derived from the endpoint URL: Vertex AI serves :predict and :explain
+        # on the same base path. Once a real endpoint lands, update the secret.
+        name  = "VERTEX_EXPLAIN_URL"
+        value = "https://vertex-placeholder.example.com/explain"
+      }
+      env {
+        name  = "BQ_LEDGER_TABLE"
+        value = "sales_ledger"
+      }
     }
   }
 }
