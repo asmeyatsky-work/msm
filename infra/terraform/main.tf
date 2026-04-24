@@ -4,14 +4,24 @@
 terraform {
   required_version = ">= 1.8.0"
   required_providers {
-    google = { source = "hashicorp/google", version = "~> 5.35" }
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.35"
+    }
   }
   backend "gcs" {}
 }
 
-variable "project_id" { type = string }
-variable "region"     { type = string default = "us-central1" }
-variable "env"        { type = string }
+variable "project_id" {
+  type = string
+}
+variable "region" {
+  type    = string
+  default = "us-central1"
+}
+variable "env" {
+  type = string
+}
 
 provider "google" {
   project = var.project_id
@@ -26,10 +36,12 @@ resource "google_bigquery_dataset" "rpc" {
 }
 
 resource "google_storage_bucket" "artifacts" {
-  name     = "${var.project_id}-rpc-artifacts-${var.env}"
-  location = var.region
+  name                        = "${var.project_id}-rpc-artifacts-${var.env}"
+  location                    = var.region
   uniform_bucket_level_access = true
-  versioning { enabled = true }
+  versioning {
+    enabled = true
+  }
 }
 
 # --- Event backbone (PRD §2.2) ---
@@ -46,13 +58,13 @@ resource "google_bigquery_table" "predictions" {
     field = "predicted_at"
   }
   schema = jsonencode([
-    { name = "click_id",       type = "STRING",    mode = "REQUIRED" },
-    { name = "correlation_id", type = "STRING",    mode = "NULLABLE" },
-    { name = "predicted_rpc",  type = "FLOAT64",   mode = "REQUIRED" },
-    { name = "source",         type = "STRING",    mode = "REQUIRED" },
-    { name = "model_version",  type = "STRING",    mode = "NULLABLE" },
-    { name = "ts_ms",          type = "INT64",     mode = "REQUIRED" },
-    { name = "predicted_at",   type = "TIMESTAMP", mode = "REQUIRED" },
+    { name = "click_id", type = "STRING", mode = "REQUIRED" },
+    { name = "correlation_id", type = "STRING", mode = "NULLABLE" },
+    { name = "predicted_rpc", type = "FLOAT64", mode = "REQUIRED" },
+    { name = "source", type = "STRING", mode = "REQUIRED" },
+    { name = "model_version", type = "STRING", mode = "NULLABLE" },
+    { name = "ts_ms", type = "INT64", mode = "REQUIRED" },
+    { name = "predicted_at", type = "TIMESTAMP", mode = "REQUIRED" },
   ])
 }
 
@@ -87,13 +99,37 @@ resource "google_service_account" "activation" {
 # --- Secrets (§4: never in code/config) ---
 resource "google_secret_manager_secret" "ssgtm_api_key" {
   secret_id = "ssgtm-api-key-${var.env}"
-  replication { auto {} }
+  replication {
+    auto {}
+  }
 }
 
 # --- Runtime config (PRD §5 Kill Switch without redeploy) ---
 resource "google_secret_manager_secret" "runtime_config" {
   secret_id = "rpc-runtime-config-${var.env}"
-  replication { auto {} }
+  replication {
+    auto {}
+  }
+}
+
+# Initial runtime config — scoring-api fails startup without a version to read.
+# Starting posture: kill off, full canary, bounds matching the hardcoded env
+# defaults. Staged rollout narrows canary_bp through Cloud Scheduler later.
+resource "google_secret_manager_secret_version" "runtime_config_initial" {
+  secret = google_secret_manager_secret.runtime_config.id
+  secret_data = jsonencode({
+    kill       = false
+    bounds_min = 0.01
+    bounds_max = 500.0
+    canary_bp  = 10000 # PRD §4.3: start at 100% = shadow mode by bounds only
+  })
+
+  # Subsequent versions are written by the breaker-automation Cloud Function
+  # (kill switch) and by the bounds-calibration job (bounds_min/max) via PR
+  # merge. Don't let `terraform apply` overwrite them.
+  lifecycle {
+    ignore_changes = [secret_data, enabled]
+  }
 }
 
 # --- Circuit breaker automation (PRD §2.2 Cloud Functions) ---

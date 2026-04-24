@@ -10,8 +10,14 @@
 # Once both sides are in place, cd.yml can run `terraform apply` on every
 # tag / manual dispatch without any key material.
 
-variable "github_org"  { type = string default = "asmeyatsky-work" }
-variable "github_repo" { type = string default = "msm" }
+variable "github_org" {
+  type    = string
+  default = "asmeyatsky-work"
+}
+variable "github_repo" {
+  type    = string
+  default = "msm"
+}
 
 resource "google_iam_workload_identity_pool" "gh" {
   workload_identity_pool_id = "github-${var.env}"
