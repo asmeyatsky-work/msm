@@ -1,10 +1,19 @@
 // §2: layer direction enforced via eslint-plugin-boundaries.
 import boundaries from "eslint-plugin-boundaries";
+import tseslint from "typescript-eslint";
 
 export default [
+  ...tseslint.configs.base,
   {
-    // ESLint 9 flat config: files globs are required to match .ts/.tsx.
     files: ["src/**/*.ts", "src/**/*.tsx"],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        ecmaFeatures: { jsx: true },
+      },
+    },
     plugins: { boundaries },
     settings: {
       "boundaries/elements": [

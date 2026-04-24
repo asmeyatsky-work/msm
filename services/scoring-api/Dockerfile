@@ -1,5 +1,5 @@
 # scoring-api — Rust hot path. Multi-stage for small final image.
-FROM rust:1.82-slim AS builder
+FROM rust:1.89-slim AS builder
 WORKDIR /build
 RUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev protobuf-compiler \
  && rm -rf /var/lib/apt/lists/*
