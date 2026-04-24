@@ -69,6 +69,26 @@ resource "google_bigquery_table" "predictions" {
 }
 
 # Typed view over the raw Pub/Sub table — keeps the reconciliation contract stable.
+# Sales ledger — realized revenue per click. BigQueryDataLayer queries this
+# on circuit-breaker fallback (PRD §5). Empty at bootstrap; Dataform / the
+# ingestion job appends rows.
+resource "google_bigquery_table" "sales_ledger" {
+  dataset_id          = google_bigquery_dataset.rpc.dataset_id
+  table_id            = "sales_ledger"
+  deletion_protection = false
+  time_partitioning {
+    type  = "DAY"
+    field = "revenue_ts"
+  }
+  schema = jsonencode([
+    { name = "click_id", type = "STRING", mode = "REQUIRED" },
+    { name = "revenue", type = "FLOAT64", mode = "REQUIRED" },
+    { name = "revenue_ts", type = "TIMESTAMP", mode = "REQUIRED" },
+    { name = "order_id", type = "STRING", mode = "NULLABLE" },
+    { name = "ts_ms", type = "INT64", mode = "NULLABLE" },
+  ])
+}
+
 resource "google_bigquery_table" "predictions_view" {
   dataset_id          = google_bigquery_dataset.rpc.dataset_id
   table_id            = "rpc_predictions"

@@ -34,6 +34,7 @@ jobs:
       image_activation:     ${{ steps.meta.outputs.activation }}
       image_breaker:        ${{ steps.meta.outputs.breaker }}
       image_ml_pipeline:    ${{ steps.meta.outputs.ml_pipeline }}
+      image_mock_vertex:    ${{ steps.meta.outputs.mock_vertex }}
     steps:
       - uses: actions/checkout@v4
       - id: sha
@@ -60,6 +61,7 @@ jobs:
           echo "activation=${base}/activation:${SHA}"         >> "$GITHUB_OUTPUT"
           echo "breaker=${base}/breaker-automation:${SHA}"    >> "$GITHUB_OUTPUT"
           echo "ml_pipeline=${base}/ml-pipeline:${SHA}"       >> "$GITHUB_OUTPUT"
+          echo "mock_vertex=${base}/mock-vertex:${SHA}"       >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -88,6 +90,10 @@ jobs:
         uses: docker/build-push-action@v6
         with: { context: services/ml-pipeline, push: true, tags: "${{ steps.meta.outputs.ml_pipeline }}" }
 
+      - name: build mock-vertex
+        uses: docker/build-push-action@v6
+        with: { context: services/mock-vertex, push: true, tags: "${{ steps.meta.outputs.mock_vertex }}" }
+
   deploy-staging:
     needs: build-push
     # Staging runs on: tag push, push to main, or manual dispatch (any env).
@@ -111,6 +117,7 @@ jobs:
           TF_VAR_image_activation:     ${{ needs.build-push.outputs.image_activation }}
           TF_VAR_image_breaker:        ${{ needs.build-push.outputs.image_breaker }}
           TF_VAR_image_ml_pipeline:    ${{ needs.build-push.outputs.image_ml_pipeline }}
+          TF_VAR_image_mock_vertex:    ${{ needs.build-push.outputs.image_mock_vertex }}
         run: |
           # TF_VAR_region is set in job env. Bootstrap created the bucket
           # with a region prefix; access requires a quota project.
@@ -150,6 +157,7 @@ jobs:
           TF_VAR_image_activation:     ${{ needs.build-push.outputs.image_activation }}
           TF_VAR_image_breaker:        ${{ needs.build-push.outputs.image_breaker }}
           TF_VAR_image_ml_pipeline:    ${{ needs.build-push.outputs.image_ml_pipeline }}
+          TF_VAR_image_mock_vertex:    ${{ needs.build-push.outputs.image_mock_vertex }}
         run: |
           terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET_PROD }}"
           terraform apply -auto-approve -lock-timeout=5m
