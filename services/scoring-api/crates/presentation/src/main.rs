@@ -212,17 +212,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => Arc::new(RuntimeConfig::new(kill, bounds_min, bounds_max)),
     };
 
+    // PRD §2.2 bundgets 100ms total. Cloud Run → Vertex AI round-trip in the
+    // same region is typically 50-300ms (warm). Make configurable so the
+    // deploy can tune vs. SLO without a code change.
+    let model_timeout_ms: u64 = std::env::var("MODEL_TIMEOUT_MS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(500);
+    let bq_timeout_ms: u64 = std::env::var("BQ_TIMEOUT_MS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(500);
+
     let deps = ScoreClickDeps {
         model: Arc::new(VertexEndpoint::new(
             vertex_url,
             model_version,
-            Duration::from_millis(80),
+            Duration::from_millis(model_timeout_ms),
         )),
         data_layer: Arc::new(BigQueryDataLayer::new(
             std::env::var("GCP_PROJECT").map_err(|_| "GCP_PROJECT required")?,
             std::env::var("BQ_DATASET").map_err(|_| "BQ_DATASET required")?,
             std::env::var("BQ_LEDGER_TABLE").unwrap_or_else(|_| "sales_ledger".into()),
-            Duration::from_millis(200),
+            Duration::from_millis(bq_timeout_ms),
         )),
         clock: Arc::new(SystemClock),
         config,
@@ -232,7 +244,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::env::var("PREDICTIONS_TOPIC").unwrap_or_else(|_| "rpc-predictions".into()),
             Duration::from_millis(200),
         )),
-        model_timeout: Duration::from_millis(80), // PRD §2.2: <100ms budget
+        model_timeout: Duration::from_millis(model_timeout_ms),
         breaker_cool_off: Duration::from_secs(30),
         anomaly_threshold: 0.03, // PRD §5: >3% null/zero
         // PRD §6 Hero feature — enable when both endpoint + policy are set.
