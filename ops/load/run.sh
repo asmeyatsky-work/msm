@@ -55,14 +55,25 @@ export PREDICTIONS_TOPIC="rpc-predictions-load"
 export LISTEN_ADDR="127.0.0.1:${API_PORT}"
 export RPC_MIN="0.01" RPC_MAX="500"
 
-(cd "$ROOT/services/scoring-api" && cargo run --release -q --bin scoring-api) &
+# Build first so the health-check loop isn't racing against a cold compile.
+echo "building scoring-api (release) …"
+(cd "$ROOT/services/scoring-api" && cargo build --release --quiet --bin scoring-api)
+
+"$ROOT/services/scoring-api/target/release/scoring-api" &
 API_PID=$!
 
-# Wait until /healthz responds.
-for i in $(seq 1 60); do
-  if curl -fsS "http://127.0.0.1:${API_PORT}/healthz" >/dev/null 2>&1; then break; fi
+# Wait until /healthz responds (up to 60s).
+ready=0
+for i in $(seq 1 120); do
+  if curl -fsS "http://127.0.0.1:${API_PORT}/healthz" >/dev/null 2>&1; then
+    ready=1; break
+  fi
   sleep 0.5
 done
+if [ "$ready" -ne 1 ]; then
+  echo "::error::scoring-api failed to start on 127.0.0.1:${API_PORT}" >&2
+  exit 1
+fi
 
 # 3. Drive load with oha (Rust-native; structured JSON output).
 PAYLOAD='{"click_id":"l-1","correlation_id":"l","device":"mobile","geo":"US","hour_of_day":10,"query_intent":"x","ad_creative_id":"a","cerberus_score":0.5,"rpc_7d":1.0,"rpc_14d":1.0,"rpc_30d":1.0,"is_payday_week":false,"auction_pressure":0.5,"landing_path":"/","visits_prev_30d":0}'

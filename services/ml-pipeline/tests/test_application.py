@@ -1,5 +1,4 @@
 """Application tests — §5: ≥85% coverage, mock ports only."""
-from typing import Sequence
 from msm_ml.application import TrainModel, DetectDrift
 from msm_ml.domain import FeatureVector, ModelVersion, DriftScore, DriftVerdict
 
@@ -16,7 +15,8 @@ class _Trainer:
 class _Registry:
     def __init__(self): self.last = None
     def register(self, artifact, model_id):
-        self.last = ModelVersion(model_id, "v1", 0); return self.last
+        self.last = ModelVersion(model_id, "v1", 0)
+        return self.last
     def latest(self, model_id): return self.last
 
 

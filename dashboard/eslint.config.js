@@ -3,6 +3,8 @@ import boundaries from "eslint-plugin-boundaries";
 
 export default [
   {
+    // ESLint 9 flat config: files globs are required to match .ts/.tsx.
+    files: ["src/**/*.ts", "src/**/*.tsx"],
     plugins: { boundaries },
     settings: {
       "boundaries/elements": [
