@@ -1,13 +1,12 @@
 // §2: layer direction enforced via eslint-plugin-boundaries.
 import boundaries from "eslint-plugin-boundaries";
-import tseslint from "typescript-eslint";
+import tsParser from "@typescript-eslint/parser";
 
 export default [
-  ...tseslint.configs.base,
   {
     files: ["src/**/*.ts", "src/**/*.tsx"],
     languageOptions: {
-      parser: tseslint.parser,
+      parser: tsParser,
       parserOptions: {
         ecmaVersion: "latest",
         sourceType: "module",

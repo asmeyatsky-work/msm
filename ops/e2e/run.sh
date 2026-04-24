@@ -4,9 +4,14 @@
 set -euo pipefail
 
 cd "$(dirname "$0")"
-trap 'docker compose down -v --remove-orphans || true' EXIT
+trap 'docker compose logs --no-color scoring-api fake-vertex || true; docker compose down -v --remove-orphans || true' EXIT
 
-docker compose up -d --build --wait
+docker compose up -d --build --wait || {
+  echo "::group::scoring-api logs"
+  docker compose logs --no-color scoring-api
+  echo "::endgroup::"
+  exit 1
+}
 
 # Score path.
 RESP=$(curl -fsS -X POST http://localhost:8080/v1/score \
