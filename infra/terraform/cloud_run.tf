@@ -211,41 +211,8 @@ resource "google_cloud_run_v2_service_iam_member" "scoring_api_public" {
   member   = "allUsers" # staging only — tighten for prod once an ingress LB is in place
 }
 
-# Mock Vertex endpoint — returns canned {"predictions": [2.5]} until a real
-# Vertex AI model is registered. Optional (gated on image var).
-resource "google_cloud_run_v2_service" "mock_vertex" {
-  count    = var.image_mock_vertex == "" ? 0 : 1
-  name     = "mock-vertex-${var.env}"
-  location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
-  template {
-    service_account = google_service_account.scoring_api.email
-    containers {
-      image = var.image_mock_vertex
-      ports {
-        container_port = 8080
-      }
-    }
-  }
-}
-
-resource "google_cloud_run_v2_service_iam_member" "mock_vertex_public" {
-  count    = var.image_mock_vertex == "" ? 0 : 1
-  project  = var.project_id
-  location = var.region
-  name     = google_cloud_run_v2_service.mock_vertex[0].name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}
-
-resource "google_secret_manager_secret_version" "vertex_endpoint_url_mock" {
-  count       = var.image_mock_vertex == "" ? 0 : 1
-  secret      = google_secret_manager_secret.vertex_endpoint_url.id
-  secret_data = "${google_cloud_run_v2_service.mock_vertex[0].uri}/v1/projects/msm-rpc/locations/europe-west2/endpoints/mock:predict"
-  lifecycle {
-    ignore_changes = [secret_data, enabled]
-  }
-}
+# Mock Vertex service retired in v0.1.4 — real Vertex AI endpoint is live.
+# Kept the image var for rollback if needed.
 
 resource "google_cloud_run_v2_service_iam_member" "reconciliation_public" {
   project  = var.project_id
