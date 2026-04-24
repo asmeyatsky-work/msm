@@ -74,7 +74,13 @@ impl ModelEndpoint for VertexEndpoint {
             .pointer("/predictions/0")
             .and_then(|v| v.as_f64())
             .ok_or_else(|| PortError::Upstream("missing predictions[0]".into()))?;
-        let rpc = Rpc::try_new(raw).map_err(|e| PortError::Upstream(e.to_string()))?;
+        // XGBoost regression has no non-negativity constraint, so out-of-
+        // distribution inputs can produce small negative predictions. RPC is
+        // physical revenue (≥0 by definition); clamp and let PredictionBounds
+        // handle the "is this plausible?" question. Without this clamp the
+        // domain refuses to construct Rpc and the breaker opens.
+        let clamped = raw.max(0.0);
+        let rpc = Rpc::try_new(clamped).map_err(|e| PortError::Upstream(e.to_string()))?;
         Ok((rpc, self.model_version.clone()))
     }
 }

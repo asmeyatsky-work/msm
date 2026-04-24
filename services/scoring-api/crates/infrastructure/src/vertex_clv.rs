@@ -60,6 +60,6 @@ impl ClvEndpoint for VertexClvEndpoint {
             .pointer("/predictions/0")
             .and_then(|v| v.as_f64())
             .ok_or_else(|| PortError::Upstream("missing clv prediction".into()))?;
-        Clv::try_new(raw).map_err(|e| PortError::Upstream(e.to_string()))
+        Clv::try_new(raw.max(0.0)).map_err(|e| PortError::Upstream(e.to_string()))
     }
 }
