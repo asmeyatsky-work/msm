@@ -84,6 +84,50 @@ resource "google_project_iam_member" "ci_tf_state" {
   member  = "serviceAccount:${google_service_account.ci.email}"
 }
 
+# CI re-runs terraform, which reads and updates project IAM / GCP resources
+# across the whole config. Without these, the CI SA can't even READ its own
+# bindings, so plan fails. Broad but scoped to the single project.
+resource "google_project_iam_member" "ci_iam_admin" {
+  project = var.project_id
+  role    = "roles/resourcemanager.projectIamAdmin"
+  member  = "serviceAccount:${google_service_account.ci.email}"
+}
+resource "google_project_iam_member" "ci_secret_admin" {
+  project = var.project_id
+  role    = "roles/secretmanager.admin"
+  member  = "serviceAccount:${google_service_account.ci.email}"
+}
+resource "google_project_iam_member" "ci_pubsub_admin" {
+  project = var.project_id
+  role    = "roles/pubsub.admin"
+  member  = "serviceAccount:${google_service_account.ci.email}"
+}
+resource "google_project_iam_member" "ci_bq_admin" {
+  project = var.project_id
+  role    = "roles/bigquery.admin"
+  member  = "serviceAccount:${google_service_account.ci.email}"
+}
+resource "google_project_iam_member" "ci_storage_admin" {
+  project = var.project_id
+  role    = "roles/storage.admin"
+  member  = "serviceAccount:${google_service_account.ci.email}"
+}
+resource "google_project_iam_member" "ci_cloudscheduler_admin" {
+  project = var.project_id
+  role    = "roles/cloudscheduler.admin"
+  member  = "serviceAccount:${google_service_account.ci.email}"
+}
+resource "google_project_iam_member" "ci_wif_admin" {
+  project = var.project_id
+  role    = "roles/iam.workloadIdentityPoolAdmin"
+  member  = "serviceAccount:${google_service_account.ci.email}"
+}
+resource "google_project_iam_member" "ci_sa_admin" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountAdmin"
+  member  = "serviceAccount:${google_service_account.ci.email}"
+}
+
 output "wif_provider_resource" {
   description = "Value for the GCP_WIF_PROVIDER GitHub Actions secret."
   value       = "projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.gh.workload_identity_pool_id}/providers/${google_iam_workload_identity_pool_provider.github.workload_identity_pool_provider_id}"
