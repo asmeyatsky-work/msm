@@ -54,7 +54,7 @@ jobs:
       - id: meta
         env: { SHA: "${{ steps.sha.outputs.short }}" }
         run: |
-          base="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/${REPO}"
+          base="${REGION}-docker.pkg.dev/${{ vars.GCP_PROJECT }}/${REPO}"
           echo "scoring_api=${base}/scoring-api:${SHA}"       >> "$GITHUB_OUTPUT"
           echo "reconciliation=${base}/reconciliation:${SHA}" >> "$GITHUB_OUTPUT"
           echo "activation=${base}/activation:${SHA}"         >> "$GITHUB_OUTPUT"
@@ -103,7 +103,7 @@ jobs:
       - name: terraform apply
         working-directory: infra/terraform
         env:
-          TF_VAR_project_id:          ${{ secrets.GCP_PROJECT }}
+          TF_VAR_project_id:          ${{ vars.GCP_PROJECT }}
           TF_VAR_region:              europe-west2
           TF_VAR_env:                 staging
           TF_VAR_image_scoring_api:    ${{ needs.build-push.outputs.image_scoring_api }}
@@ -139,7 +139,7 @@ jobs:
       - name: terraform apply prod
         working-directory: infra/terraform
         env:
-          TF_VAR_project_id:          ${{ secrets.GCP_PROJECT_PROD }}
+          TF_VAR_project_id:          ${{ vars.GCP_PROJECT_PROD }}
           TF_VAR_region:              europe-west2
           TF_VAR_env:                 prod
           TF_VAR_image_scoring_api:    ${{ needs.build-push.outputs.image_scoring_api }}
