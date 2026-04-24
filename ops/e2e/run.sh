@@ -6,12 +6,21 @@ set -euo pipefail
 cd "$(dirname "$0")"
 trap 'docker compose logs --no-color scoring-api fake-vertex || true; docker compose down -v --remove-orphans || true' EXIT
 
-docker compose up -d --build --wait || {
+docker compose up -d --build
+
+# Poll scoring-api from the host (distroless has no curl, so docker healthcheck
+# can't run). Up to 60s for cold-start.
+ready=0
+for _ in $(seq 1 120); do
+  if curl -fsS http://localhost:8080/healthz >/dev/null 2>&1; then ready=1; break; fi
+  sleep 0.5
+done
+if [ "$ready" -ne 1 ]; then
   echo "::group::scoring-api logs"
   docker compose logs --no-color scoring-api
   echo "::endgroup::"
   exit 1
-}
+fi
 
 # Score path.
 RESP=$(curl -fsS -X POST http://localhost:8080/v1/score \
