@@ -14,6 +14,8 @@ import httpx
 from pydantic import BaseModel, Field
 from mcp.server.fastmcp import FastMCP
 
+from scopes import require_scope
+
 SCORING_URL = os.environ["SCORING_API_URL"]        # §4: no default for externally-facing URLs
 CALL_TIMEOUT_S = float(os.environ.get("MCP_CALL_TIMEOUT_S", "0.2"))  # §3.2 timeout
 
@@ -39,8 +41,10 @@ class ScoreInput(BaseModel):
 
 
 @mcp.tool()
+@require_scope("scoring.score.write")
 async def score_click(payload: ScoreInput) -> dict:
-    """Score a click via the Scoring use case. Write tool (§3.5)."""
+    """Score a click via the Scoring use case. Write tool (§3.5).
+    Requires scope `scoring.score.write`; token TTL capped at 15 min (§4)."""
     async with httpx.AsyncClient(timeout=CALL_TIMEOUT_S) as client:
         resp = await client.post(f"{SCORING_URL}/v1/score", json=payload.model_dump())
         resp.raise_for_status()
@@ -48,12 +52,19 @@ async def score_click(payload: ScoreInput) -> dict:
 
 
 @mcp.resource("scoring://health")
+@require_scope("scoring.health.read", ttl_max_s=900)
 async def health() -> str:
-    """Health probe — read resource (§3.5)."""
+    """Health probe — read resource (§3.5). Requires `scoring.health.read`."""
     async with httpx.AsyncClient(timeout=CALL_TIMEOUT_S) as client:
         r = await client.get(f"{SCORING_URL}/healthz")
         return r.text
 
 
 if __name__ == "__main__":
+    # §4: install a real verifier at startup. Secret pulled via Workload Identity.
+    import base64 as _b64
+    from hmac_verifier import HmacVerifier
+    from scopes import install_verifier
+    secret_b64 = os.environ["MCP_TOKEN_SECRET_B64"]
+    install_verifier(HmacVerifier(_b64.b64decode(secret_b64)))
     mcp.run()

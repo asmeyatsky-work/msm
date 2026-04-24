@@ -94,6 +94,40 @@ resource "google_pubsub_subscription" "anomaly_to_breaker" {
   ack_deadline_seconds = 30
 }
 
+# Bounds auto-calibration — scheduled PR opener. Optional (gated on image var).
+variable "image_bounds_calibration" {
+  type    = string
+  default = ""
+}
+
+resource "google_cloud_run_v2_job" "bounds_calibration" {
+  count    = var.image_bounds_calibration == "" ? 0 : 1
+  name     = "bounds-calibration-${var.env}"
+  location = var.region
+  template {
+    template {
+      service_account = google_service_account.scoring_api.email
+      containers {
+        image = var.image_bounds_calibration
+        env { name = "GCP_PROJECT" value = var.project_id }
+        env { name = "BQ_DATASET"  value = google_bigquery_dataset.rpc.dataset_id }
+      }
+    }
+  }
+}
+
+resource "google_cloud_scheduler_job" "bounds_calibration" {
+  count    = var.image_bounds_calibration == "" ? 0 : 1
+  name     = "bounds-calibration-${var.env}"
+  schedule = "0 6 * * 1"  # Mondays 06:00 UTC
+  region   = var.region
+  http_target {
+    http_method = "POST"
+    uri         = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${google_cloud_run_v2_job.bounds_calibration[0].name}:run"
+    oauth_token { service_account_email = google_service_account.scoring_api.email }
+  }
+}
+
 # ml-pipeline runs on Cloud Run Jobs (training is not a long-lived service).
 resource "google_cloud_run_v2_job" "ml_pipeline_train" {
   name     = "ml-pipeline-train-${var.env}"

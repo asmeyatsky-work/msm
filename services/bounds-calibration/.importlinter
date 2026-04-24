@@ -1,0 +1,17 @@
+[importlinter]
+root_package = msm_bounds
+
+[importlinter:contract:layers]
+name = Layered architecture
+type = layers
+layers =
+    msm_bounds.presentation
+    msm_bounds.infrastructure
+    msm_bounds.application
+    msm_bounds.domain
+
+[importlinter:contract:domain-purity]
+name = Domain imports nothing heavy
+type = forbidden
+source_modules = msm_bounds.domain
+forbidden_modules = google, github, pydantic

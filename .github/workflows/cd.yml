@@ -1,0 +1,143 @@
+# CD — build, push, deploy on tags or main.
+# §4: Workload Identity Federation; no long-lived service-account keys.
+name: cd
+on:
+  push:
+    tags: ["v*.*.*"]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Deployment environment"
+        required: true
+        default: "staging"
+        type: choice
+        options: [staging, prod]
+
+permissions:
+  contents: read
+  id-token: write  # required for Workload Identity Federation
+
+env:
+  REGION: us-central1
+  REPO: rpc-estimator
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image_scoring_api:    ${{ steps.meta.outputs.scoring_api }}
+      image_reconciliation: ${{ steps.meta.outputs.reconciliation }}
+      image_activation:     ${{ steps.meta.outputs.activation }}
+      image_breaker:        ${{ steps.meta.outputs.breaker }}
+      image_ml_pipeline:    ${{ steps.meta.outputs.ml_pipeline }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: sha
+        run: echo "short=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Auth to GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account:            ${{ secrets.GCP_CI_SA }}
+          create_credentials_file:    true
+
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: configure artifact registry
+        run: |
+          gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+
+      - id: meta
+        env: { SHA: "${{ steps.sha.outputs.short }}" }
+        run: |
+          base="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/${REPO}"
+          echo "scoring_api=${base}/scoring-api:${SHA}"       >> "$GITHUB_OUTPUT"
+          echo "reconciliation=${base}/reconciliation:${SHA}" >> "$GITHUB_OUTPUT"
+          echo "activation=${base}/activation:${SHA}"         >> "$GITHUB_OUTPUT"
+          echo "breaker=${base}/breaker-automation:${SHA}"    >> "$GITHUB_OUTPUT"
+          echo "ml_pipeline=${base}/ml-pipeline:${SHA}"       >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: build scoring-api
+        uses: docker/build-push-action@v6
+        with:
+          context: services/scoring-api
+          push: true
+          tags: ${{ steps.meta.outputs.scoring_api }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: build reconciliation
+        uses: docker/build-push-action@v6
+        with: { context: services/reconciliation, push: true, tags: "${{ steps.meta.outputs.reconciliation }}" }
+
+      - name: build activation
+        uses: docker/build-push-action@v6
+        with: { context: services/activation, push: true, tags: "${{ steps.meta.outputs.activation }}" }
+
+      - name: build breaker-automation
+        uses: docker/build-push-action@v6
+        with: { context: services/breaker-automation, push: true, tags: "${{ steps.meta.outputs.breaker }}" }
+
+      - name: build ml-pipeline
+        uses: docker/build-push-action@v6
+        with: { context: services/ml-pipeline, push: true, tags: "${{ steps.meta.outputs.ml_pipeline }}" }
+
+  deploy-staging:
+    needs: build-push
+    if: github.ref == 'refs/heads/main' || github.event.inputs.env == 'staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account:            ${{ secrets.GCP_CI_SA }}
+      - uses: hashicorp/setup-terraform@v3
+      - name: terraform apply
+        working-directory: infra/terraform
+        env:
+          TF_VAR_project_id:          ${{ secrets.GCP_PROJECT }}
+          TF_VAR_region:              us-central1
+          TF_VAR_env:                 staging
+          TF_VAR_image_scoring_api:    ${{ needs.build-push.outputs.image_scoring_api }}
+          TF_VAR_image_reconciliation: ${{ needs.build-push.outputs.image_reconciliation }}
+          TF_VAR_image_activation:     ${{ needs.build-push.outputs.image_activation }}
+          TF_VAR_image_breaker:        ${{ needs.build-push.outputs.image_breaker }}
+          TF_VAR_image_ml_pipeline:    ${{ needs.build-push.outputs.image_ml_pipeline }}
+        run: |
+          terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
+          terraform apply -auto-approve -lock-timeout=5m
+
+      - name: post-deploy smoke
+        run: bash ops/smoke.sh "${{ secrets.SCORING_API_URL_STAGING }}"
+
+  deploy-prod:
+    needs: [build-push, deploy-staging]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: prod  # requires GitHub environment approval
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_PROD }}
+          service_account:            ${{ secrets.GCP_CI_SA_PROD }}
+      - uses: hashicorp/setup-terraform@v3
+      - name: terraform apply prod
+        working-directory: infra/terraform
+        env:
+          TF_VAR_project_id:          ${{ secrets.GCP_PROJECT_PROD }}
+          TF_VAR_region:              us-central1
+          TF_VAR_env:                 prod
+          TF_VAR_image_scoring_api:    ${{ needs.build-push.outputs.image_scoring_api }}
+          TF_VAR_image_reconciliation: ${{ needs.build-push.outputs.image_reconciliation }}
+          TF_VAR_image_activation:     ${{ needs.build-push.outputs.image_activation }}
+          TF_VAR_image_breaker:        ${{ needs.build-push.outputs.image_breaker }}
+          TF_VAR_image_ml_pipeline:    ${{ needs.build-push.outputs.image_ml_pipeline }}
+        run: |
+          terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET_PROD }}"
+          terraform apply -auto-approve -lock-timeout=5m

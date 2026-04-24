@@ -14,6 +14,7 @@ pub mod click;
 pub mod prediction;
 pub mod guardrails;
 pub mod clv;
+pub mod canary;
 pub mod ports;
 pub mod errors;
 
@@ -21,4 +22,5 @@ pub use click::{ClickFeatures, ClickId, CorrelationId};
 pub use prediction::{Prediction, PredictionSource, Rpc};
 pub use guardrails::{PredictionBounds, KillSwitch, CircuitBreakerState, AnomalyWindow};
 pub use clv::{Clv, ClvPremium};
+pub use canary::{CanaryRatio, CanarySampler};
 pub use errors::DomainError;

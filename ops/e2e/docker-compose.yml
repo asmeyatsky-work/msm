@@ -1,0 +1,35 @@
+services:
+  fake-vertex:
+    image: python:3.12-slim
+    volumes:
+      - ./fake_vertex.py:/app/fake_vertex.py:ro
+    working_dir: /app
+    command: ["python", "fake_vertex.py"]
+    ports: ["8090:8090"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8090/token\")'"]
+      interval: 2s
+      retries: 10
+
+  scoring-api:
+    build: ../../services/scoring-api
+    depends_on:
+      fake-vertex:
+        condition: service_healthy
+    environment:
+      GCP_METADATA_TOKEN_URL: "http://fake-vertex:8090/token"
+      VERTEX_ENDPOINT_URL:    "http://fake-vertex:8090/predict"
+      VERTEX_EXPLAIN_URL:     "http://fake-vertex:8090/explain"
+      MODEL_VERSION:          "e2e"
+      GCP_PROJECT:            "e2e"
+      BQ_DATASET:             "e2e"
+      BQ_LEDGER_TABLE:        "sales_ledger"
+      PREDICTIONS_TOPIC:      "rpc-predictions-e2e"
+      RPC_MIN: "0.01"
+      RPC_MAX: "500"
+      LISTEN_ADDR: "0.0.0.0:8080"
+    ports: ["8080:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/healthz >/dev/null"]
+      interval: 2s
+      retries: 15

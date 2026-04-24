@@ -6,6 +6,7 @@ use tracing::{warn, instrument};
 use msm_scoring_domain::{
     ClickFeatures, Prediction, PredictionSource, Rpc,
     PredictionBounds, CircuitBreakerState, AnomalyWindow, ClvPremium,
+    CanaryRatio, CanarySampler,
     ports::{ModelEndpoint, ClvEndpoint, DataLayerRevenue, Clock, ConfigSource, AuditSink, AuditEvent, PredictionSink, PredictionRecord, FeatureStore, PortError},
 };
 
@@ -71,6 +72,18 @@ impl ScoreClick {
             .map_err(|e| ScoreClickError::Config(e.to_string()))?;
         let bounds = PredictionBounds::try_new(min, max)
             .map_err(|e| ScoreClickError::Config(e.to_string()))?;
+
+        // PRD §4.3: if this click is outside the current activation band, skip
+        // the model call entirely and fall back to tCPA. Decision is sticky
+        // (hash of click_id) so retries produce the same outcome.
+        let ratio_bp = self.deps.config.canary_ratio_bp().await
+            .map_err(|e| ScoreClickError::Config(e.to_string()))?;
+        let sampler = CanarySampler::new(
+            CanaryRatio::try_new(ratio_bp).map_err(|e| ScoreClickError::Config(e.to_string()))?,
+        );
+        if !sampler.in_canary(features.click_id()) {
+            return self.fallback(&features, PredictionSource::FallbackTcpa, "out_of_canary").await;
+        }
 
         let now = self.deps.clock.now_epoch_ms();
         let cool_off = self.deps.breaker_cool_off.as_millis() as u64;
@@ -257,10 +270,12 @@ mod tests {
         }
     }
 
-    struct Config { kill: bool, bounds: (f64, f64) }
+    struct Config { kill: bool, bounds: (f64, f64), canary_bp: u16 }
+    impl Config { fn new(kill: bool, bounds: (f64, f64)) -> Self { Self { kill, bounds, canary_bp: 10_000 } } }
     #[async_trait] impl ConfigSource for Config {
         async fn kill_switch(&self) -> Result<KillSwitch, PortError> { Ok(KillSwitch::new(self.kill)) }
         async fn bounds(&self) -> Result<(f64, f64), PortError> { Ok(self.bounds) }
+        async fn canary_ratio_bp(&self) -> Result<u16, PortError> { Ok(self.canary_bp) }
     }
 
     struct NullAudit;
@@ -291,7 +306,7 @@ mod tests {
             model,
             data_layer: Arc::new(StaticDataLayer(2.5)),
             clock: Arc::new(FixedClock(0)),
-            config: Arc::new(Config { kill, bounds }),
+            config: Arc::new(Config::new(kill, bounds)),
             audit: Arc::new(NullAudit),
             predictions: Arc::new(RecordingSink(Default::default())),
             model_timeout: Duration::from_millis(50),
@@ -310,6 +325,15 @@ mod tests {
         async fn lookup(&self, _: &str) -> Result<msm_scoring_domain::ports::FeatureOverrides, PortError> {
             Ok(self.0.clone())
         }
+    }
+
+    #[tokio::test]
+    async fn zero_canary_ratio_falls_back_to_tcpa() {
+        let mut deps = deps_with(Arc::new(StaticModel(3.0)), false, (0.1, 100.0));
+        deps.config = Arc::new(Config { kill: false, bounds: (0.1, 100.0), canary_bp: 0 });
+        let uc = ScoreClick::new(deps);
+        let p = uc.execute(features()).await.unwrap();
+        assert_eq!(p.source(), PredictionSource::FallbackTcpa);
     }
 
     #[tokio::test]

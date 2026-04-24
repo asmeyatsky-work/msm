@@ -59,6 +59,9 @@ pub trait Clock: Send + Sync {
 pub trait ConfigSource: Send + Sync {
     async fn kill_switch(&self) -> Result<KillSwitch, PortError>;
     async fn bounds(&self) -> Result<(f64, f64), PortError>;
+    /// PRD §4.3 staged activation ratio in basis points (0..=10_000).
+    /// Default impl returns 10_000 (100%) so existing adapters keep working.
+    async fn canary_ratio_bp(&self) -> Result<u16, PortError> { Ok(10_000) }
 }
 
 /// §4: every write emits an audit event; append-only sink.

@@ -91,6 +91,33 @@ jobs:
       - name: parity test
         run: bash contract-tests/parity.sh
 
+  load-test:
+    # PRD §2.2: p99 < 100ms on /v1/score. Fails CI on budget breach.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: install oha
+        run: cargo install oha --locked --quiet
+      - name: run load test
+        env:
+          BUDGET_P99_MS: "100"
+          DURATION: "10s"
+          CONCURRENCY: "50"
+        run: bash ops/load/run.sh
+
+  e2e-smoke:
+    # Full stack up in docker-compose; probes /v1/score and /v1/explain.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: run e2e
+        run: bash ops/e2e/run.sh
+
   sbom:
     # §4: SBOM at build.
     runs-on: ubuntu-latest
