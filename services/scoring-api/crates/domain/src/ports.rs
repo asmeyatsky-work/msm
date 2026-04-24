@@ -1,17 +1,20 @@
 //! Ports — §3.2: every external dependency has a port; adapters implement it;
 //! tests use in-memory adapters. No SDKs imported here.
 
-use async_trait::async_trait;
 use crate::click::ClickFeatures;
-use crate::prediction::{Rpc};
-use crate::guardrails::KillSwitch;
 use crate::clv::Clv;
+use crate::guardrails::KillSwitch;
+use crate::prediction::Rpc;
+use async_trait::async_trait;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PortError {
-    #[error("timeout after {0}ms")] Timeout(u64),
-    #[error("upstream error: {0}")] Upstream(String),
-    #[error("config missing: {0}")] MissingConfig(String),
+    #[error("timeout after {0}ms")]
+    Timeout(u64),
+    #[error("upstream error: {0}")]
+    Upstream(String),
+    #[error("config missing: {0}")]
+    MissingConfig(String),
 }
 
 /// Vertex AI endpoint (or any model host). Adapter lives in `infrastructure`.
@@ -61,7 +64,9 @@ pub trait ConfigSource: Send + Sync {
     async fn bounds(&self) -> Result<(f64, f64), PortError>;
     /// PRD §4.3 staged activation ratio in basis points (0..=10_000).
     /// Default impl returns 10_000 (100%) so existing adapters keep working.
-    async fn canary_ratio_bp(&self) -> Result<u16, PortError> { Ok(10_000) }
+    async fn canary_ratio_bp(&self) -> Result<u16, PortError> {
+        Ok(10_000)
+    }
 }
 
 /// §4: every write emits an audit event; append-only sink.
@@ -105,9 +110,16 @@ pub struct Attribution {
 impl Attribution {
     /// Sorted (descending by |contribution|) top-k features.
     pub fn top_features(&self, k: usize) -> Vec<(&str, f64)> {
-        let mut v: Vec<(&str, f64)> = self.contributions.iter()
-            .map(|(k, v)| (k.as_str(), *v)).collect();
-        v.sort_by(|a, b| b.1.abs().partial_cmp(&a.1.abs()).unwrap_or(std::cmp::Ordering::Equal));
+        let mut v: Vec<(&str, f64)> = self
+            .contributions
+            .iter()
+            .map(|(k, v)| (k.as_str(), *v))
+            .collect();
+        v.sort_by(|a, b| {
+            b.1.abs()
+                .partial_cmp(&a.1.abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         v.truncate(k);
         v
     }

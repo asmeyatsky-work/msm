@@ -16,7 +16,11 @@ from mcp.server.fastmcp import FastMCP
 
 from scopes import require_scope
 
-SCORING_URL = os.environ["SCORING_API_URL"]        # §4: no default for externally-facing URLs
+# §4: no default for externally-facing URLs — reads deferred to first call so
+# schemas can be imported for testing without environment.
+def _scoring_url() -> str:
+    return os.environ["SCORING_API_URL"]
+
 CALL_TIMEOUT_S = float(os.environ.get("MCP_CALL_TIMEOUT_S", "0.2"))  # §3.2 timeout
 
 mcp = FastMCP("msm-scoring")
@@ -46,7 +50,7 @@ async def score_click(payload: ScoreInput) -> dict:
     """Score a click via the Scoring use case. Write tool (§3.5).
     Requires scope `scoring.score.write`; token TTL capped at 15 min (§4)."""
     async with httpx.AsyncClient(timeout=CALL_TIMEOUT_S) as client:
-        resp = await client.post(f"{SCORING_URL}/v1/score", json=payload.model_dump())
+        resp = await client.post(f"{_scoring_url()}/v1/score", json=payload.model_dump())
         resp.raise_for_status()
         return resp.json()
 
@@ -56,7 +60,7 @@ async def score_click(payload: ScoreInput) -> dict:
 async def health() -> str:
     """Health probe — read resource (§3.5). Requires `scoring.health.read`."""
     async with httpx.AsyncClient(timeout=CALL_TIMEOUT_S) as client:
-        r = await client.get(f"{SCORING_URL}/healthz")
+        r = await client.get(f"{_scoring_url()}/healthz")
         return r.text
 
 

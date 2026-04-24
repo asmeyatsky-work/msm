@@ -3,19 +3,26 @@
 //! Layer: presentation. Wires adapters into the `ScoreClick` use case.
 //! §4: validates all external input against a schema (serde + domain constructors).
 
+use axum::{
+    extract::{Request, State},
+    http::StatusCode,
+    middleware::{self, Next},
+    response::Response,
+    routing::{get, post},
+    Json, Router,
+};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
-use axum::{routing::{post, get}, Router, Json, http::StatusCode, extract::{State, Request}, middleware::{self, Next}, response::Response};
 use std::time::Instant;
-use serde::{Deserialize, Serialize};
 
-use msm_scoring_application::{ScoreClick, ScoreClickDeps, ExplainClick};
+use msm_scoring_application::{ExplainClick, ScoreClick, ScoreClickDeps};
 use msm_scoring_domain::click::{ClickFeatures, ClickFeaturesInput};
-use msm_scoring_infrastructure::{
-    VertexEndpoint, VertexExplain, BigQueryDataLayer, SystemClock,
-    RuntimeConfig, SecretManagerConfig, PubSubAudit, PubSubPredictions,
-};
 use msm_scoring_domain::ports::ConfigSource;
+use msm_scoring_infrastructure::{
+    BigQueryDataLayer, PubSubAudit, PubSubPredictions, RuntimeConfig, SecretManagerConfig,
+    SystemClock, VertexEndpoint, VertexExplain,
+};
 
 #[derive(Clone)]
 struct AppState {
@@ -72,9 +79,13 @@ async fn score_handler(
         auction_pressure: req.auction_pressure,
         landing_path: req.landing_path,
         visits_prev_30d: req.visits_prev_30d,
-    }).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    })
+    .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    let pred = state.use_case.execute(features).await
+    let pred = state
+        .use_case
+        .execute(features)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(ScoreResponse {
@@ -100,15 +111,26 @@ async fn explain_handler(
     let features = ClickFeatures::try_new(ClickFeaturesInput {
         click_id: req.click_id.clone(),
         correlation_id: req.correlation_id,
-        device: req.device, geo: req.geo, hour_of_day: req.hour_of_day,
-        query_intent: req.query_intent, ad_creative_id: req.ad_creative_id,
+        device: req.device,
+        geo: req.geo,
+        hour_of_day: req.hour_of_day,
+        query_intent: req.query_intent,
+        ad_creative_id: req.ad_creative_id,
         cerberus_score: req.cerberus_score,
-        rpc_7d: req.rpc_7d, rpc_14d: req.rpc_14d, rpc_30d: req.rpc_30d,
-        is_payday_week: req.is_payday_week, auction_pressure: req.auction_pressure,
-        landing_path: req.landing_path, visits_prev_30d: req.visits_prev_30d,
-    }).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+        rpc_7d: req.rpc_7d,
+        rpc_14d: req.rpc_14d,
+        rpc_30d: req.rpc_30d,
+        is_payday_week: req.is_payday_week,
+        auction_pressure: req.auction_pressure,
+        landing_path: req.landing_path,
+        visits_prev_30d: req.visits_prev_30d,
+    })
+    .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    let a = state.explain.execute(features).await
+    let a = state
+        .explain
+        .execute(features)
+        .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     Ok(Json(ExplainResponse {
         click_id: req.click_id,
@@ -117,7 +139,9 @@ async fn explain_handler(
     }))
 }
 
-async fn healthz() -> &'static str { "ok" }
+async fn healthz() -> &'static str {
+    "ok"
+}
 
 async fn metrics_handler(
     State(handle): State<metrics_exporter_prometheus::PrometheusHandle>,
@@ -155,27 +179,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let vertex_url = std::env::var("VERTEX_ENDPOINT_URL")
         .map_err(|_| "VERTEX_ENDPOINT_URL must be provided via Secret Manager/Workload Identity")?;
     let model_version = std::env::var("MODEL_VERSION").unwrap_or_else(|_| "unknown".into());
-    let bounds_min: f64 = std::env::var("RPC_MIN").ok().and_then(|v| v.parse().ok()).unwrap_or(0.01);
-    let bounds_max: f64 = std::env::var("RPC_MAX").ok().and_then(|v| v.parse().ok()).unwrap_or(500.0);
-    let kill: bool = std::env::var("KILL_SWITCH").ok().map(|v| v == "true").unwrap_or(false);
+    let bounds_min: f64 = std::env::var("RPC_MIN")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0.01);
+    let bounds_max: f64 = std::env::var("RPC_MAX")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(500.0);
+    let kill: bool = std::env::var("KILL_SWITCH")
+        .ok()
+        .map(|v| v == "true")
+        .unwrap_or(false);
 
     // Prefer Secret-Manager-backed config so the breaker-automation function
     // can flip the kill switch by writing a new secret version (PRD §5,
     // no redeploy). Fall back to env-backed RuntimeConfig for local dev.
-    let config: Arc<dyn ConfigSource> =
-        match (std::env::var("GCP_PROJECT").ok(), std::env::var("RUNTIME_CONFIG_SECRET").ok()) {
-            (Some(project), Some(secret_id)) => Arc::new(
-                SecretManagerConfig::new(
-                    project, secret_id,
-                    Duration::from_secs(15),
-                    Duration::from_millis(500),
-                ).await.map_err(|e| format!("runtime config init: {e}"))?,
-            ),
-            _ => Arc::new(RuntimeConfig::new(kill, bounds_min, bounds_max)),
-        };
+    let config: Arc<dyn ConfigSource> = match (
+        std::env::var("GCP_PROJECT").ok(),
+        std::env::var("RUNTIME_CONFIG_SECRET").ok(),
+    ) {
+        (Some(project), Some(secret_id)) => Arc::new(
+            SecretManagerConfig::new(
+                project,
+                secret_id,
+                Duration::from_secs(15),
+                Duration::from_millis(500),
+            )
+            .await
+            .map_err(|e| format!("runtime config init: {e}"))?,
+        ),
+        _ => Arc::new(RuntimeConfig::new(kill, bounds_min, bounds_max)),
+    };
 
     let deps = ScoreClickDeps {
-        model: Arc::new(VertexEndpoint::new(vertex_url, model_version, Duration::from_millis(80))),
+        model: Arc::new(VertexEndpoint::new(
+            vertex_url,
+            model_version,
+            Duration::from_millis(80),
+        )),
         data_layer: Arc::new(BigQueryDataLayer::new(
             std::env::var("GCP_PROJECT").map_err(|_| "GCP_PROJECT required")?,
             std::env::var("BQ_DATASET").map_err(|_| "BQ_DATASET required")?,
@@ -190,32 +232,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::env::var("PREDICTIONS_TOPIC").unwrap_or_else(|_| "rpc-predictions".into()),
             Duration::from_millis(200),
         )),
-        model_timeout: Duration::from_millis(80),       // PRD §2.2: <100ms budget
+        model_timeout: Duration::from_millis(80), // PRD §2.2: <100ms budget
         breaker_cool_off: Duration::from_secs(30),
-        anomaly_threshold: 0.03,                         // PRD §5: >3% null/zero
+        anomaly_threshold: 0.03, // PRD §5: >3% null/zero
         // PRD §6 Hero feature — enable when both endpoint + policy are set.
         clv: std::env::var("CLV_ENDPOINT_URL").ok().map(|url| {
-            let arc: Arc<dyn msm_scoring_domain::ports::ClvEndpoint> =
-                Arc::new(msm_scoring_infrastructure::VertexClvEndpoint::new(
-                    url, Duration::from_millis(80),
-                ));
+            let arc: Arc<dyn msm_scoring_domain::ports::ClvEndpoint> = Arc::new(
+                msm_scoring_infrastructure::VertexClvEndpoint::new(url, Duration::from_millis(80)),
+            );
             arc
         }),
         clv_premium: match (
             std::env::var("CLV_ALPHA").ok().and_then(|v| v.parse().ok()),
-            std::env::var("CLV_REFERENCE").ok().and_then(|v| v.parse().ok()),
+            std::env::var("CLV_REFERENCE")
+                .ok()
+                .and_then(|v| v.parse().ok()),
             std::env::var("CLV_CAP").ok().and_then(|v| v.parse().ok()),
         ) {
-            (Some(a), Some(r), Some(c)) =>
-                msm_scoring_domain::ClvPremium::try_new(a, r, c).ok(),
+            (Some(a), Some(r), Some(c)) => msm_scoring_domain::ClvPremium::try_new(a, r, c).ok(),
             _ => None,
         },
         clv_timeout: Duration::from_millis(80),
-        feature_store: match (std::env::var("GCP_REGION").ok(), std::env::var("FEATURE_VIEW").ok()) {
+        feature_store: match (
+            std::env::var("GCP_REGION").ok(),
+            std::env::var("FEATURE_VIEW").ok(),
+        ) {
             (Some(region), Some(fv)) => {
                 let arc: Arc<dyn msm_scoring_domain::ports::FeatureStore> =
                     Arc::new(msm_scoring_infrastructure::VertexFeatureStore::new(
-                        region, fv, Duration::from_millis(40),
+                        region,
+                        fv,
+                        Duration::from_millis(40),
                     ));
                 Some(arc)
             }
@@ -225,8 +272,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let use_case = Arc::new(ScoreClick::new(deps));
 
-    let explain_url = std::env::var("VERTEX_EXPLAIN_URL")
-        .map_err(|_| "VERTEX_EXPLAIN_URL must be provided")?;
+    let explain_url =
+        std::env::var("VERTEX_EXPLAIN_URL").map_err(|_| "VERTEX_EXPLAIN_URL must be provided")?;
     let explain = Arc::new(ExplainClick::new(
         Arc::new(VertexExplain::new(explain_url, Duration::from_millis(1500))),
         Duration::from_millis(1500), // explain is slow; off hot path

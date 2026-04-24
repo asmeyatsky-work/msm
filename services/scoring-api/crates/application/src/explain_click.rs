@@ -1,15 +1,17 @@
+use msm_scoring_domain::{
+    ports::{Attribution, ExplainEndpoint, PortError},
+    ClickFeatures,
+};
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::instrument;
-use msm_scoring_domain::{
-    ClickFeatures,
-    ports::{ExplainEndpoint, Attribution, PortError},
-};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExplainClickError {
-    #[error("explain failed: {0}")] Upstream(String),
-    #[error("timeout")] Timeout,
+    #[error("explain failed: {0}")]
+    Upstream(String),
+    #[error("timeout")]
+    Timeout,
 }
 
 pub struct ExplainClick {

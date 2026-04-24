@@ -23,9 +23,15 @@ impl CanaryRatio {
         }
         Ok(Self(bp))
     }
-    pub fn full() -> Self { Self(10_000) }
-    pub fn off()  -> Self { Self(0) }
-    pub fn as_bp(self) -> u16 { self.0 }
+    pub fn full() -> Self {
+        Self(10_000)
+    }
+    pub fn off() -> Self {
+        Self(0)
+    }
+    pub fn as_bp(self) -> u16 {
+        self.0
+    }
 }
 
 /// Deterministic FNV-1a 64-bit — no external dep, keeps domain free of SDKs (§2).
@@ -38,16 +44,24 @@ fn fnv1a(bytes: &[u8]) -> u64 {
     h
 }
 
-pub struct CanarySampler { ratio: CanaryRatio }
+pub struct CanarySampler {
+    ratio: CanaryRatio,
+}
 
 impl CanarySampler {
-    pub fn new(ratio: CanaryRatio) -> Self { Self { ratio } }
+    pub fn new(ratio: CanaryRatio) -> Self {
+        Self { ratio }
+    }
 
     /// `true` → expose the model prediction to bidding.
     /// `false` → treat this click as out-of-canary (caller should use tCPA fallback).
     pub fn in_canary(&self, click_id: &ClickId) -> bool {
-        if self.ratio.as_bp() == 0 { return false; }
-        if self.ratio.as_bp() == 10_000 { return true; }
+        if self.ratio.as_bp() == 0 {
+            return false;
+        }
+        if self.ratio.as_bp() == 10_000 {
+            return true;
+        }
         let bucket = (fnv1a(click_id.as_str().as_bytes()) % 10_000) as u16;
         bucket < self.ratio.as_bp()
     }
@@ -57,7 +71,9 @@ impl CanarySampler {
 mod tests {
     use super::*;
 
-    fn cid(s: &str) -> ClickId { ClickId::new(s).unwrap() }
+    fn cid(s: &str) -> ClickId {
+        ClickId::new(s).unwrap()
+    }
 
     #[test]
     fn full_ratio_includes_everything() {
@@ -80,15 +96,22 @@ mod tests {
         let s = CanarySampler::new(CanaryRatio::try_new(100).unwrap());
         let c = cid("same-click");
         let first = s.in_canary(&c);
-        for _ in 0..10 { assert_eq!(s.in_canary(&c), first); }
+        for _ in 0..10 {
+            assert_eq!(s.in_canary(&c), first);
+        }
     }
 
     #[test]
     fn sampling_is_approximately_uniform() {
         // With 10% target on 5_000 clicks, expect ~500 ± wide margin.
         let s = CanarySampler::new(CanaryRatio::try_new(1_000).unwrap());
-        let hits = (0..5000).filter(|i| s.in_canary(&cid(&format!("c-{i}")))).count();
-        assert!((350..650).contains(&hits), "got {hits} in canary (expected ~500)");
+        let hits = (0..5000)
+            .filter(|i| s.in_canary(&cid(&format!("c-{i}"))))
+            .count();
+        assert!(
+            (350..650).contains(&hits),
+            "got {hits} in canary (expected ~500)"
+        );
     }
 
     #[test]

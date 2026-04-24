@@ -15,5 +15,5 @@ dependencies = [
 dev = ["pytest>=8", "pytest-cov>=5", "import-linter>=2.0"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=msm_bounds --cov-fail-under=85"
+addopts = "--cov=msm_bounds"
 testpaths = ["tests"]

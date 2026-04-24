@@ -15,4 +15,4 @@ pub mod msm {
     }
 }
 
-pub use msm::scoring::v1 as v1;
+pub use msm::scoring::v1;

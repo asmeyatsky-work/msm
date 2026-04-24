@@ -1,11 +1,11 @@
-use std::sync::Arc;
-use std::time::Duration;
+use crate::gcp_auth::MetadataTokenSource;
 use async_trait::async_trait;
 use msm_scoring_domain::{
-    ClickFeatures, Rpc,
     ports::{ModelEndpoint, PortError},
+    ClickFeatures, Rpc,
 };
-use crate::gcp_auth::MetadataTokenSource;
+use std::sync::Arc;
+use std::time::Duration;
 
 /// Vertex AI online prediction endpoint.
 /// Auth via Workload Identity metadata-server token (§4).
@@ -19,9 +19,17 @@ pub struct VertexEndpoint {
 
 impl VertexEndpoint {
     pub fn new(endpoint_url: String, model_version: String, per_call_timeout: Duration) -> Self {
-        let http = reqwest::Client::builder().timeout(per_call_timeout).build().expect("client");
+        let http = reqwest::Client::builder()
+            .timeout(per_call_timeout)
+            .build()
+            .expect("client");
         let tokens = Arc::new(MetadataTokenSource::new(per_call_timeout));
-        Self { http, endpoint_url, model_version, tokens }
+        Self {
+            http,
+            endpoint_url,
+            model_version,
+            tokens,
+        }
     }
 }
 
@@ -38,17 +46,24 @@ impl ModelEndpoint for VertexEndpoint {
                 "rpc_30d": features.rpc_30d(),
             }]
         });
-        let resp = self.http.post(&self.endpoint_url)
+        let resp = self
+            .http
+            .post(&self.endpoint_url)
             .bearer_auth(token)
-            .json(&body).send().await
+            .json(&body)
+            .send()
+            .await
             .map_err(|e| PortError::Upstream(e.to_string()))?;
         if !resp.status().is_success() {
             return Err(PortError::Upstream(format!("status={}", resp.status())));
         }
-        let parsed: serde_json::Value = resp.json().await
+        let parsed: serde_json::Value = resp
+            .json()
+            .await
             .map_err(|e| PortError::Upstream(e.to_string()))?;
         // Vertex AI returns {"predictions": [x]} for a regression endpoint.
-        let raw = parsed.pointer("/predictions/0")
+        let raw = parsed
+            .pointer("/predictions/0")
             .and_then(|v| v.as_f64())
             .ok_or_else(|| PortError::Upstream("missing predictions[0]".into()))?;
         let rpc = Rpc::try_new(raw).map_err(|e| PortError::Upstream(e.to_string()))?;

@@ -3,17 +3,17 @@
 //! free of network I/O. Closes the PRD §5 auto-breaker loop with the
 //! breaker-automation Cloud Function.
 
-use std::sync::Arc;
-use std::time::Duration;
 use async_trait::async_trait;
 use serde::Deserialize;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 
+use crate::gcp_auth::MetadataTokenSource;
 use msm_scoring_domain::{
     guardrails::KillSwitch,
     ports::{ConfigSource, PortError},
 };
-use crate::gcp_auth::MetadataTokenSource;
 
 #[derive(Debug, Clone, Deserialize)]
 struct SecretPayload {
@@ -24,8 +24,12 @@ struct SecretPayload {
     #[serde(default = "default_max")]
     bounds_max: f64,
 }
-fn default_min() -> f64 { 0.01 }
-fn default_max() -> f64 { 500.0 }
+fn default_min() -> f64 {
+    0.01
+}
+fn default_max() -> f64 {
+    500.0
+}
 
 pub struct SecretManagerConfig {
     cached: Arc<RwLock<SecretPayload>>,
@@ -41,7 +45,9 @@ impl SecretManagerConfig {
         per_call_timeout: Duration,
     ) -> Result<Self, String> {
         let tokens = Arc::new(MetadataTokenSource::new(per_call_timeout));
-        let http = reqwest::Client::builder().timeout(per_call_timeout).build()
+        let http = reqwest::Client::builder()
+            .timeout(per_call_timeout)
+            .build()
             .map_err(|e| e.to_string())?;
         let url = format!(
             "https://secretmanager.googleapis.com/v1/projects/{}/secrets/{}/versions/latest:access",
@@ -74,12 +80,23 @@ async fn fetch(
     url: &str,
 ) -> Result<SecretPayload, String> {
     let token = tokens.token().await?;
-    let resp = http.get(url).bearer_auth(token).send().await.map_err(|e| e.to_string())?;
+    let resp = http
+        .get(url)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
         return Err(format!("secret status {}", resp.status()));
     }
-    #[derive(Deserialize)] struct V { payload: P }
-    #[derive(Deserialize)] struct P { data: String }  // base64
+    #[derive(Deserialize)]
+    struct V {
+        payload: P,
+    }
+    #[derive(Deserialize)]
+    struct P {
+        data: String,
+    } // base64
     let v: V = resp.json().await.map_err(|e| e.to_string())?;
     let decoded = base64_decode(&v.payload.data)?;
     serde_json::from_slice(&decoded).map_err(|e| e.to_string())
@@ -94,9 +111,13 @@ fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
     let mut buf: u32 = 0;
     let mut bits: u32 = 0;
     for c in clean.bytes() {
-        if c == b'=' { break; }
+        if c == b'=' {
+            break;
+        }
         let v = table[c as usize];
-        if v < 0 { return Err(format!("bad base64 char: {}", c)); }
+        if v < 0 {
+            return Err(format!("bad base64 char: {}", c));
+        }
         buf = (buf << 6) | v as u32;
         bits += 6;
         if bits >= 8 {

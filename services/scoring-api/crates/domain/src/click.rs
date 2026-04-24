@@ -1,7 +1,7 @@
 //! Click value objects. Immutable; invariants enforced in constructors (§3.3, §3.4).
 
-use serde::{Deserialize, Serialize};
 use crate::errors::DomainError;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ClickId(String);
@@ -14,15 +14,21 @@ impl ClickId {
         }
         Ok(Self(s))
     }
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CorrelationId(String);
 
 impl CorrelationId {
-    pub fn new(raw: impl Into<String>) -> Self { Self(raw.into()) }
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn new(raw: impl Into<String>) -> Self {
+        Self(raw.into())
+    }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 /// Validated, immutable click feature vector. Constructed only via `try_new`,
@@ -75,9 +81,15 @@ impl ClickFeatures {
             return Err(DomainError::InvalidHour(i.hour_of_day));
         }
         if !(0.0..=1.0).contains(&i.cerberus_score) || i.cerberus_score.is_nan() {
-            return Err(DomainError::InvalidCerberusScore(i.cerberus_score.to_string()));
+            return Err(DomainError::InvalidCerberusScore(
+                i.cerberus_score.to_string(),
+            ));
         }
-        for (name, v) in [("rpc_7d", i.rpc_7d), ("rpc_14d", i.rpc_14d), ("rpc_30d", i.rpc_30d)] {
+        for (name, v) in [
+            ("rpc_7d", i.rpc_7d),
+            ("rpc_14d", i.rpc_14d),
+            ("rpc_30d", i.rpc_30d),
+        ] {
             if v.is_nan() || v.is_infinite() || v < 0.0 {
                 return Err(DomainError::InvalidRpc(format!("{name}={v}")));
             }
@@ -101,22 +113,50 @@ impl ClickFeatures {
         })
     }
 
-    pub fn click_id(&self) -> &ClickId { &self.click_id }
-    pub fn correlation_id(&self) -> &CorrelationId { &self.correlation_id }
-    pub fn cerberus_score(&self) -> f64 { self.cerberus_score }
-    pub fn rpc_7d(&self) -> f64 { self.rpc_7d }
-    pub fn rpc_14d(&self) -> f64 { self.rpc_14d }
-    pub fn rpc_30d(&self) -> f64 { self.rpc_30d }
-    pub fn visits_prev_30d(&self) -> u32 { self.visits_prev_30d }
+    pub fn click_id(&self) -> &ClickId {
+        &self.click_id
+    }
+    pub fn correlation_id(&self) -> &CorrelationId {
+        &self.correlation_id
+    }
+    pub fn cerberus_score(&self) -> f64 {
+        self.cerberus_score
+    }
+    pub fn rpc_7d(&self) -> f64 {
+        self.rpc_7d
+    }
+    pub fn rpc_14d(&self) -> f64 {
+        self.rpc_14d
+    }
+    pub fn rpc_30d(&self) -> f64 {
+        self.rpc_30d
+    }
+    pub fn visits_prev_30d(&self) -> u32 {
+        self.visits_prev_30d
+    }
 
     /// Returns a new instance with fresh rolling signals (§3.3 immutable; state
     /// changes return new instances). NaN or negative overrides are ignored.
     #[must_use]
     pub fn with_overrides(mut self, o: &crate::ports::FeatureOverrides) -> Self {
-        if let Some(v) = o.rpc_7d   { if v.is_finite() && v >= 0.0 { self.rpc_7d  = v; } }
-        if let Some(v) = o.rpc_14d  { if v.is_finite() && v >= 0.0 { self.rpc_14d = v; } }
-        if let Some(v) = o.rpc_30d  { if v.is_finite() && v >= 0.0 { self.rpc_30d = v; } }
-        if let Some(v) = o.visits_prev_30d { self.visits_prev_30d = v; }
+        if let Some(v) = o.rpc_7d {
+            if v.is_finite() && v >= 0.0 {
+                self.rpc_7d = v;
+            }
+        }
+        if let Some(v) = o.rpc_14d {
+            if v.is_finite() && v >= 0.0 {
+                self.rpc_14d = v;
+            }
+        }
+        if let Some(v) = o.rpc_30d {
+            if v.is_finite() && v >= 0.0 {
+                self.rpc_30d = v;
+            }
+        }
+        if let Some(v) = o.visits_prev_30d {
+            self.visits_prev_30d = v;
+        }
         self
     }
 }
@@ -127,12 +167,21 @@ mod tests {
 
     fn valid_input() -> ClickFeaturesInput {
         ClickFeaturesInput {
-            click_id: "c-1".into(), correlation_id: "t-1".into(),
-            device: "mobile".into(), geo: "US-CA".into(), hour_of_day: 14,
-            query_intent: "commercial".into(), ad_creative_id: "ad-1".into(),
-            cerberus_score: 0.8, rpc_7d: 1.2, rpc_14d: 1.1, rpc_30d: 1.0,
-            is_payday_week: false, auction_pressure: 0.4,
-            landing_path: "/p".into(), visits_prev_30d: 3,
+            click_id: "c-1".into(),
+            correlation_id: "t-1".into(),
+            device: "mobile".into(),
+            geo: "US-CA".into(),
+            hour_of_day: 14,
+            query_intent: "commercial".into(),
+            ad_creative_id: "ad-1".into(),
+            cerberus_score: 0.8,
+            rpc_7d: 1.2,
+            rpc_14d: 1.1,
+            rpc_30d: 1.0,
+            is_payday_week: false,
+            auction_pressure: 0.4,
+            landing_path: "/p".into(),
+            visits_prev_30d: 3,
         }
     }
 
@@ -143,25 +192,41 @@ mod tests {
 
     #[test]
     fn rejects_bad_hour() {
-        let mut i = valid_input(); i.hour_of_day = 24;
-        assert!(matches!(ClickFeatures::try_new(i), Err(DomainError::InvalidHour(24))));
+        let mut i = valid_input();
+        i.hour_of_day = 24;
+        assert!(matches!(
+            ClickFeatures::try_new(i),
+            Err(DomainError::InvalidHour(24))
+        ));
     }
 
     #[test]
     fn rejects_bad_cerberus() {
-        let mut i = valid_input(); i.cerberus_score = 1.5;
-        assert!(matches!(ClickFeatures::try_new(i), Err(DomainError::InvalidCerberusScore(_))));
+        let mut i = valid_input();
+        i.cerberus_score = 1.5;
+        assert!(matches!(
+            ClickFeatures::try_new(i),
+            Err(DomainError::InvalidCerberusScore(_))
+        ));
     }
 
     #[test]
     fn rejects_negative_rpc() {
-        let mut i = valid_input(); i.rpc_7d = -0.01;
-        assert!(matches!(ClickFeatures::try_new(i), Err(DomainError::InvalidRpc(_))));
+        let mut i = valid_input();
+        i.rpc_7d = -0.01;
+        assert!(matches!(
+            ClickFeatures::try_new(i),
+            Err(DomainError::InvalidRpc(_))
+        ));
     }
 
     #[test]
     fn rejects_empty_click_id() {
-        let mut i = valid_input(); i.click_id = "".into();
-        assert!(matches!(ClickFeatures::try_new(i), Err(DomainError::EmptyClickId)));
+        let mut i = valid_input();
+        i.click_id = "".into();
+        assert!(matches!(
+            ClickFeatures::try_new(i),
+            Err(DomainError::EmptyClickId)
+        ));
     }
 }

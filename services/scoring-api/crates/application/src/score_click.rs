@@ -1,19 +1,23 @@
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use tracing::{warn, instrument};
+use tracing::{instrument, warn};
 
 use msm_scoring_domain::{
-    ClickFeatures, Prediction, PredictionSource, Rpc,
-    PredictionBounds, CircuitBreakerState, AnomalyWindow, ClvPremium,
-    CanaryRatio, CanarySampler,
-    ports::{ModelEndpoint, ClvEndpoint, DataLayerRevenue, Clock, ConfigSource, AuditSink, AuditEvent, PredictionSink, PredictionRecord, FeatureStore, PortError},
+    ports::{
+        AuditEvent, AuditSink, Clock, ClvEndpoint, ConfigSource, DataLayerRevenue, FeatureStore,
+        ModelEndpoint, PortError, PredictionRecord, PredictionSink,
+    },
+    AnomalyWindow, CanaryRatio, CanarySampler, CircuitBreakerState, ClickFeatures, ClvPremium,
+    Prediction, PredictionBounds, PredictionSource, Rpc,
 };
 
 #[derive(Debug, thiserror::Error)]
 pub enum ScoreClickError {
-    #[error("configuration error: {0}")] Config(String),
-    #[error("fatal fallback also failed: {0}")] FallbackFailed(String),
+    #[error("configuration error: {0}")]
+    Config(String),
+    #[error("fatal fallback also failed: {0}")]
+    FallbackFailed(String),
 }
 
 /// Injected collaborators. §3.2: every external call has a port.
@@ -62,13 +66,23 @@ impl ScoreClick {
 
     #[instrument(skip(self, features), fields(click_id = features.click_id().as_str()))]
     pub async fn execute(&self, features: ClickFeatures) -> Result<Prediction, ScoreClickError> {
-        let kill = self.deps.config.kill_switch().await
+        let kill = self
+            .deps
+            .config
+            .kill_switch()
+            .await
             .map_err(|e| ScoreClickError::Config(e.to_string()))?;
         if kill.is_engaged() {
-            return self.fallback(&features, PredictionSource::KillSwitch, "kill_switch").await;
+            return self
+                .fallback(&features, PredictionSource::KillSwitch, "kill_switch")
+                .await;
         }
 
-        let (min, max) = self.deps.config.bounds().await
+        let (min, max) = self
+            .deps
+            .config
+            .bounds()
+            .await
             .map_err(|e| ScoreClickError::Config(e.to_string()))?;
         let bounds = PredictionBounds::try_new(min, max)
             .map_err(|e| ScoreClickError::Config(e.to_string()))?;
@@ -76,20 +90,32 @@ impl ScoreClick {
         // PRD §4.3: if this click is outside the current activation band, skip
         // the model call entirely and fall back to tCPA. Decision is sticky
         // (hash of click_id) so retries produce the same outcome.
-        let ratio_bp = self.deps.config.canary_ratio_bp().await
+        let ratio_bp = self
+            .deps
+            .config
+            .canary_ratio_bp()
+            .await
             .map_err(|e| ScoreClickError::Config(e.to_string()))?;
         let sampler = CanarySampler::new(
             CanaryRatio::try_new(ratio_bp).map_err(|e| ScoreClickError::Config(e.to_string()))?,
         );
         if !sampler.in_canary(features.click_id()) {
-            return self.fallback(&features, PredictionSource::FallbackTcpa, "out_of_canary").await;
+            return self
+                .fallback(&features, PredictionSource::FallbackTcpa, "out_of_canary")
+                .await;
         }
 
         let now = self.deps.clock.now_epoch_ms();
         let cool_off = self.deps.breaker_cool_off.as_millis() as u64;
         let state = *self.breaker.read().await;
         if !state.allows_call(now, cool_off) {
-            return self.fallback(&features, PredictionSource::FallbackDataLayer, "breaker_open").await;
+            return self
+                .fallback(
+                    &features,
+                    PredictionSource::FallbackDataLayer,
+                    "breaker_open",
+                )
+                .await;
         }
 
         // PRD §2.2 Feature Store: optional enrichment. Degrade silently on failure
@@ -98,8 +124,14 @@ impl ScoreClick {
             let cid = features.click_id().as_str().to_string();
             match tokio::time::timeout(self.deps.feature_store_timeout, store.lookup(&cid)).await {
                 Ok(Ok(overrides)) => features.with_overrides(&overrides),
-                Ok(Err(e)) => { warn!(error = %e, "feature store lookup failed — using request features"); features }
-                Err(_) => { warn!("feature store timeout — using request features"); features }
+                Ok(Err(e)) => {
+                    warn!(error = %e, "feature store lookup failed — using request features");
+                    features
+                }
+                Err(_) => {
+                    warn!("feature store timeout — using request features");
+                    features
+                }
             }
         } else {
             features
@@ -107,14 +139,23 @@ impl ScoreClick {
 
         // §3.2 + §4: every external call is timeout-bounded.
         // §3.6: RPC and CLV are independent → run concurrently.
-        let rpc_call = tokio::time::timeout(self.deps.model_timeout, self.deps.model.predict(&features));
+        let rpc_call =
+            tokio::time::timeout(self.deps.model_timeout, self.deps.model.predict(&features));
         let clv_fut = async {
             match (self.deps.clv.as_ref(), self.deps.clv_premium) {
                 (Some(endpoint), Some(_)) => {
-                    match tokio::time::timeout(self.deps.clv_timeout, endpoint.predict(&features)).await {
+                    match tokio::time::timeout(self.deps.clv_timeout, endpoint.predict(&features))
+                        .await
+                    {
                         Ok(Ok(c)) => Some(c),
-                        Ok(Err(e)) => { warn!(error = %e, "clv predict failed — degrading"); None }
-                        Err(_) => { warn!("clv timeout — degrading"); None }
+                        Ok(Err(e)) => {
+                            warn!(error = %e, "clv predict failed — degrading");
+                            None
+                        }
+                        Err(_) => {
+                            warn!("clv timeout — degrading");
+                            None
+                        }
                     }
                 }
                 _ => None,
@@ -127,12 +168,27 @@ impl ScoreClick {
             Ok(Err(e)) => {
                 warn!(error = %e, "model predict failed — opening breaker");
                 self.trip_breaker(now).await;
-                return self.fallback(&features, PredictionSource::FallbackDataLayer, "model_error").await;
+                return self
+                    .fallback(
+                        &features,
+                        PredictionSource::FallbackDataLayer,
+                        "model_error",
+                    )
+                    .await;
             }
             Err(_elapsed) => {
-                warn!(timeout_ms = self.deps.model_timeout.as_millis() as u64, "model timeout");
+                warn!(
+                    timeout_ms = self.deps.model_timeout.as_millis() as u64,
+                    "model timeout"
+                );
                 self.trip_breaker(now).await;
-                return self.fallback(&features, PredictionSource::FallbackDataLayer, "model_timeout").await;
+                return self
+                    .fallback(
+                        &features,
+                        PredictionSource::FallbackDataLayer,
+                        "model_timeout",
+                    )
+                    .await;
             }
         };
 
@@ -145,18 +201,23 @@ impl ScoreClick {
         // Anomaly window sees every realized model call.
         let breached = {
             let mut w = self.anomaly.write().await;
-            *w = std::mem::replace(&mut *w, AnomalyWindow::new(self.deps.anomaly_threshold)).record(rpc);
+            *w = std::mem::replace(&mut *w, AnomalyWindow::new(self.deps.anomaly_threshold))
+                .record(rpc);
             w.breached()
         };
         if breached {
             warn!("anomaly window breached — tripping breaker");
             self.trip_breaker(now).await;
-            return self.fallback(&features, PredictionSource::FallbackDataLayer, "anomaly").await;
+            return self
+                .fallback(&features, PredictionSource::FallbackDataLayer, "anomaly")
+                .await;
         }
 
         if !bounds.contains(rpc) {
             // PRD §5 Prediction Bounds: reject in favor of tCPA.
-            return self.fallback(&features, PredictionSource::FallbackTcpa, "bounds_rejected").await;
+            return self
+                .fallback(&features, PredictionSource::FallbackTcpa, "bounds_rejected")
+                .await;
         }
 
         // Closed-state recovery: if we were HalfOpen, a clean success closes the breaker.
@@ -177,7 +238,9 @@ impl ScoreClick {
     }
 
     async fn trip_breaker(&self, now_epoch_ms: u64) {
-        *self.breaker.write().await = CircuitBreakerState::Open { opened_at_epoch_ms: now_epoch_ms };
+        *self.breaker.write().await = CircuitBreakerState::Open {
+            opened_at_epoch_ms: now_epoch_ms,
+        };
     }
 
     async fn fallback(
@@ -187,11 +250,15 @@ impl ScoreClick {
         reason: &'static str,
     ) -> Result<Prediction, ScoreClickError> {
         let rpc = match source {
-            PredictionSource::KillSwitch | PredictionSource::FallbackTcpa => Rpc::try_new(0.0).unwrap(),
-            PredictionSource::FallbackDataLayer => {
-                self.deps.data_layer.lookup(features).await
-                    .map_err(|e: PortError| ScoreClickError::FallbackFailed(e.to_string()))?
+            PredictionSource::KillSwitch | PredictionSource::FallbackTcpa => {
+                Rpc::try_new(0.0).unwrap()
             }
+            PredictionSource::FallbackDataLayer => self
+                .deps
+                .data_layer
+                .lookup(features)
+                .await
+                .map_err(|e: PortError| ScoreClickError::FallbackFailed(e.to_string()))?,
             PredictionSource::Model => unreachable!("model path never fallback"),
         };
         let pred = Prediction::new(
@@ -213,28 +280,36 @@ impl ScoreClick {
             PredictionSource::FallbackDataLayer => "FALLBACK_DATA_LAYER",
             PredictionSource::KillSwitch => "KILL_SWITCH",
         };
-        let _ = self.deps.predictions.record(PredictionRecord {
-            click_id: pred.click_id().as_str().into(),
-            correlation_id: pred.correlation_id().as_str().into(),
-            predicted_rpc: pred.rpc().value(),
-            source: source_str,
-            model_version: pred.model_version().into(),
-            ts_ms: self.deps.clock.now_epoch_ms(),
-        }).await;
+        let _ = self
+            .deps
+            .predictions
+            .record(PredictionRecord {
+                click_id: pred.click_id().as_str().into(),
+                correlation_id: pred.correlation_id().as_str().into(),
+                predicted_rpc: pred.rpc().value(),
+                source: source_str,
+                model_version: pred.model_version().into(),
+                ts_ms: self.deps.clock.now_epoch_ms(),
+            })
+            .await;
     }
 
     async fn audit(&self, pred: &Prediction, reason: &'static str) {
         // Hash is deliberately simple here; a crypto hash lives in infrastructure.
         let after_hash = format!("{:?}:{}", pred.source(), pred.rpc().value());
-        let _ = self.deps.audit.record(AuditEvent {
-            actor: "scoring-api".into(),
-            action: "score".into(),
-            correlation_id: pred.correlation_id().as_str().into(),
-            click_id: pred.click_id().as_str().into(),
-            before_hash: None,
-            after_hash,
-            source: reason,
-        }).await;
+        let _ = self
+            .deps
+            .audit
+            .record(AuditEvent {
+                actor: "scoring-api".into(),
+                action: "score".into(),
+                correlation_id: pred.correlation_id().as_str().into(),
+                click_id: pred.click_id().as_str().into(),
+                before_hash: None,
+                after_hash,
+                source: reason,
+            })
+            .await;
     }
 }
 
@@ -247,58 +322,99 @@ mod tests {
     use msm_scoring_domain::guardrails::KillSwitch;
 
     struct FixedClock(u64);
-    impl Clock for FixedClock { fn now_epoch_ms(&self) -> u64 { self.0 } }
+    impl Clock for FixedClock {
+        fn now_epoch_ms(&self) -> u64 {
+            self.0
+        }
+    }
 
     struct StaticModel(f64);
-    #[async_trait] impl ModelEndpoint for StaticModel {
+    #[async_trait]
+    impl ModelEndpoint for StaticModel {
         async fn predict(&self, _: &ClickFeatures) -> Result<(Rpc, String), PortError> {
             Ok((Rpc::try_new(self.0).unwrap(), "v1".into()))
         }
     }
 
     struct FailingModel;
-    #[async_trait] impl ModelEndpoint for FailingModel {
+    #[async_trait]
+    impl ModelEndpoint for FailingModel {
         async fn predict(&self, _: &ClickFeatures) -> Result<(Rpc, String), PortError> {
             Err(PortError::Upstream("boom".into()))
         }
     }
 
     struct StaticDataLayer(f64);
-    #[async_trait] impl DataLayerRevenue for StaticDataLayer {
+    #[async_trait]
+    impl DataLayerRevenue for StaticDataLayer {
         async fn lookup(&self, _: &ClickFeatures) -> Result<Rpc, PortError> {
             Ok(Rpc::try_new(self.0).unwrap())
         }
     }
 
-    struct Config { kill: bool, bounds: (f64, f64), canary_bp: u16 }
-    impl Config { fn new(kill: bool, bounds: (f64, f64)) -> Self { Self { kill, bounds, canary_bp: 10_000 } } }
-    #[async_trait] impl ConfigSource for Config {
-        async fn kill_switch(&self) -> Result<KillSwitch, PortError> { Ok(KillSwitch::new(self.kill)) }
-        async fn bounds(&self) -> Result<(f64, f64), PortError> { Ok(self.bounds) }
-        async fn canary_ratio_bp(&self) -> Result<u16, PortError> { Ok(self.canary_bp) }
+    struct Config {
+        kill: bool,
+        bounds: (f64, f64),
+        canary_bp: u16,
+    }
+    impl Config {
+        fn new(kill: bool, bounds: (f64, f64)) -> Self {
+            Self {
+                kill,
+                bounds,
+                canary_bp: 10_000,
+            }
+        }
+    }
+    #[async_trait]
+    impl ConfigSource for Config {
+        async fn kill_switch(&self) -> Result<KillSwitch, PortError> {
+            Ok(KillSwitch::new(self.kill))
+        }
+        async fn bounds(&self) -> Result<(f64, f64), PortError> {
+            Ok(self.bounds)
+        }
+        async fn canary_ratio_bp(&self) -> Result<u16, PortError> {
+            Ok(self.canary_bp)
+        }
     }
 
     struct NullAudit;
-    #[async_trait] impl AuditSink for NullAudit {
-        async fn record(&self, _: AuditEvent) -> Result<(), PortError> { Ok(()) }
+    #[async_trait]
+    impl AuditSink for NullAudit {
+        async fn record(&self, _: AuditEvent) -> Result<(), PortError> {
+            Ok(())
+        }
     }
 
     struct RecordingSink(std::sync::Arc<std::sync::Mutex<Vec<PredictionRecord>>>);
-    #[async_trait] impl PredictionSink for RecordingSink {
+    #[async_trait]
+    impl PredictionSink for RecordingSink {
         async fn record(&self, r: PredictionRecord) -> Result<(), PortError> {
-            self.0.lock().unwrap().push(r); Ok(())
+            self.0.lock().unwrap().push(r);
+            Ok(())
         }
     }
 
     fn features() -> ClickFeatures {
         ClickFeatures::try_new(ClickFeaturesInput {
-            click_id: "c".into(), correlation_id: "t".into(),
-            device: "m".into(), geo: "US".into(), hour_of_day: 10,
-            query_intent: "x".into(), ad_creative_id: "a".into(),
-            cerberus_score: 0.9, rpc_7d: 1.0, rpc_14d: 1.0, rpc_30d: 1.0,
-            is_payday_week: false, auction_pressure: 0.5,
-            landing_path: "/".into(), visits_prev_30d: 1,
-        }).unwrap()
+            click_id: "c".into(),
+            correlation_id: "t".into(),
+            device: "m".into(),
+            geo: "US".into(),
+            hour_of_day: 10,
+            query_intent: "x".into(),
+            ad_creative_id: "a".into(),
+            cerberus_score: 0.9,
+            rpc_7d: 1.0,
+            rpc_14d: 1.0,
+            rpc_30d: 1.0,
+            is_payday_week: false,
+            auction_pressure: 0.5,
+            landing_path: "/".into(),
+            visits_prev_30d: 1,
+        })
+        .unwrap()
     }
 
     fn deps_with(model: Arc<dyn ModelEndpoint>, kill: bool, bounds: (f64, f64)) -> ScoreClickDeps {
@@ -321,8 +437,12 @@ mod tests {
     }
 
     struct StaticStore(msm_scoring_domain::ports::FeatureOverrides);
-    #[async_trait] impl msm_scoring_domain::ports::FeatureStore for StaticStore {
-        async fn lookup(&self, _: &str) -> Result<msm_scoring_domain::ports::FeatureOverrides, PortError> {
+    #[async_trait]
+    impl msm_scoring_domain::ports::FeatureStore for StaticStore {
+        async fn lookup(
+            &self,
+            _: &str,
+        ) -> Result<msm_scoring_domain::ports::FeatureOverrides, PortError> {
             Ok(self.0.clone())
         }
     }
@@ -330,7 +450,11 @@ mod tests {
     #[tokio::test]
     async fn zero_canary_ratio_falls_back_to_tcpa() {
         let mut deps = deps_with(Arc::new(StaticModel(3.0)), false, (0.1, 100.0));
-        deps.config = Arc::new(Config { kill: false, bounds: (0.1, 100.0), canary_bp: 0 });
+        deps.config = Arc::new(Config {
+            kill: false,
+            bounds: (0.1, 100.0),
+            canary_bp: 0,
+        });
         let uc = ScoreClick::new(deps);
         let p = uc.execute(features()).await.unwrap();
         assert_eq!(p.source(), PredictionSource::FallbackTcpa);
@@ -342,16 +466,22 @@ mod tests {
         // verify the post-call Prediction remains clamped & the use case succeeds
         // when the store supplies fresh values.
         let mut deps = deps_with(Arc::new(StaticModel(4.0)), false, (0.1, 100.0));
-        deps.feature_store = Some(Arc::new(StaticStore(msm_scoring_domain::ports::FeatureOverrides {
-            rpc_7d: Some(9.9), rpc_14d: None, rpc_30d: None, visits_prev_30d: Some(42),
-        })));
+        deps.feature_store = Some(Arc::new(StaticStore(
+            msm_scoring_domain::ports::FeatureOverrides {
+                rpc_7d: Some(9.9),
+                rpc_14d: None,
+                rpc_30d: None,
+                visits_prev_30d: Some(42),
+            },
+        )));
         let uc = ScoreClick::new(deps);
         let p = uc.execute(features()).await.unwrap();
         assert_eq!(p.source(), PredictionSource::Model);
     }
 
     struct StaticClv(f64);
-    #[async_trait] impl msm_scoring_domain::ports::ClvEndpoint for StaticClv {
+    #[async_trait]
+    impl msm_scoring_domain::ports::ClvEndpoint for StaticClv {
         async fn predict(&self, _: &ClickFeatures) -> Result<msm_scoring_domain::Clv, PortError> {
             Ok(msm_scoring_domain::Clv::try_new(self.0).unwrap())
         }
@@ -408,7 +538,11 @@ mod tests {
 
     #[tokio::test]
     async fn bounds_rejection_falls_back_to_tcpa() {
-        let uc = ScoreClick::new(deps_with(Arc::new(StaticModel(9999.0)), false, (0.1, 100.0)));
+        let uc = ScoreClick::new(deps_with(
+            Arc::new(StaticModel(9999.0)),
+            false,
+            (0.1, 100.0),
+        ));
         let p = uc.execute(features()).await.unwrap();
         assert_eq!(p.source(), PredictionSource::FallbackTcpa);
     }

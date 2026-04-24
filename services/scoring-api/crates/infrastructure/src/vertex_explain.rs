@@ -1,11 +1,11 @@
-use std::sync::Arc;
-use std::time::Duration;
+use crate::gcp_auth::MetadataTokenSource;
 use async_trait::async_trait;
 use msm_scoring_domain::{
+    ports::{Attribution, ExplainEndpoint, PortError},
     ClickFeatures,
-    ports::{ExplainEndpoint, Attribution, PortError},
 };
-use crate::gcp_auth::MetadataTokenSource;
+use std::sync::Arc;
+use std::time::Duration;
 
 /// Vertex AI `:explain` endpoint adapter. Returns per-feature attributions.
 pub struct VertexExplain {
@@ -16,9 +16,13 @@ pub struct VertexExplain {
 
 impl VertexExplain {
     pub fn new(endpoint_url: String, per_call_timeout: Duration) -> Self {
-        let http = reqwest::Client::builder().timeout(per_call_timeout).build().expect("client");
+        let http = reqwest::Client::builder()
+            .timeout(per_call_timeout)
+            .build()
+            .expect("client");
         Self {
-            http, endpoint_url,
+            http,
+            endpoint_url,
             tokens: Arc::new(MetadataTokenSource::new(per_call_timeout)),
         }
     }
@@ -37,25 +41,45 @@ impl ExplainEndpoint for VertexExplain {
                 "rpc_30d": features.rpc_30d(),
             }]
         });
-        let resp = self.http.post(&self.endpoint_url).bearer_auth(token)
-            .json(&body).send().await
+        let resp = self
+            .http
+            .post(&self.endpoint_url)
+            .bearer_auth(token)
+            .json(&body)
+            .send()
+            .await
             .map_err(|e| PortError::Upstream(e.to_string()))?;
         if !resp.status().is_success() {
-            return Err(PortError::Upstream(format!("explain status={}", resp.status())));
+            return Err(PortError::Upstream(format!(
+                "explain status={}",
+                resp.status()
+            )));
         }
-        let parsed: serde_json::Value = resp.json().await
+        let parsed: serde_json::Value = resp
+            .json()
+            .await
             .map_err(|e| PortError::Upstream(e.to_string()))?;
         // Vertex AI explain response shape:
         //   {"explanations":[{"attributions":[{"baselineOutputValue":..,
         //       "featureAttributions":{"name":val,...}}]}]}
-        let attr = parsed.pointer("/explanations/0/attributions/0")
+        let attr = parsed
+            .pointer("/explanations/0/attributions/0")
             .ok_or_else(|| PortError::Upstream("missing attributions[0]".into()))?;
-        let base_value = attr.get("baselineOutputValue").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let feats = attr.get("featureAttributions").and_then(|v| v.as_object())
+        let base_value = attr
+            .get("baselineOutputValue")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+        let feats = attr
+            .get("featureAttributions")
+            .and_then(|v| v.as_object())
             .ok_or_else(|| PortError::Upstream("missing featureAttributions".into()))?;
-        let contributions = feats.iter()
+        let contributions = feats
+            .iter()
             .filter_map(|(k, v)| v.as_f64().map(|f| (k.clone(), f)))
             .collect();
-        Ok(Attribution { base_value, contributions })
+        Ok(Attribution {
+            base_value,
+            contributions,
+        })
     }
 }

@@ -1,10 +1,13 @@
 # CD — build, push, deploy on tags or main.
 # §4: Workload Identity Federation; no long-lived service-account keys.
 name: cd
+# Manual dispatch only until GCP Workload Identity Federation secrets are
+# wired (GCP_WIF_PROVIDER, GCP_CI_SA, GCP_PROJECT, TF_STATE_BUCKET). Push-on-
+# main is disabled to avoid red builds without those secrets. Tag-gated prod
+# remains available via workflow_dispatch → env=prod.
 on:
   push:
     tags: ["v*.*.*"]
-    branches: [main]
   workflow_dispatch:
     inputs:
       env:

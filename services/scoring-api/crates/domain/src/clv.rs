@@ -1,9 +1,9 @@
 //! CLV-adjusted bid premium — PRD §6 "Hero Feature".
 //! Pure domain rule; isolates the bidding economics from the model I/O.
 
-use serde::{Deserialize, Serialize};
 use crate::errors::DomainError;
 use crate::prediction::Rpc;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Clv(f64);
@@ -15,7 +15,9 @@ impl Clv {
         }
         Ok(Self(v))
     }
-    pub fn value(self) -> f64 { self.0 }
+    pub fn value(self) -> f64 {
+        self.0
+    }
 }
 
 /// Premium policy. The economic choice (how aggressively to steer spend toward
@@ -34,12 +36,20 @@ pub struct ClvPremium {
 
 impl ClvPremium {
     pub fn try_new(alpha: f64, clv_reference: f64, cap: f64) -> Result<Self, DomainError> {
-        for (n, v) in [("alpha", alpha), ("clv_reference", clv_reference), ("cap", cap)] {
+        for (n, v) in [
+            ("alpha", alpha),
+            ("clv_reference", clv_reference),
+            ("cap", cap),
+        ] {
             if v.is_nan() || v.is_infinite() || v <= 0.0 {
                 return Err(DomainError::InvalidRpc(format!("{n}={v}")));
             }
         }
-        Ok(Self { alpha, clv_reference, cap })
+        Ok(Self {
+            alpha,
+            clv_reference,
+            cap,
+        })
     }
 
     pub fn adjust(&self, rpc: Rpc, clv: Clv) -> Rpc {

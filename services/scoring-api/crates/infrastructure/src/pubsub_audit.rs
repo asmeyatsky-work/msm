@@ -1,12 +1,16 @@
 use async_trait::async_trait;
-use msm_scoring_domain::ports::{AuditSink, AuditEvent, PortError};
+use msm_scoring_domain::ports::{AuditEvent, AuditSink, PortError};
 
 /// Append-only audit sink to a Pub/Sub topic with its own IAM (§4).
 /// Kept as a thin adapter — no business decisions.
-pub struct PubSubAudit { topic: String }
+pub struct PubSubAudit {
+    topic: String,
+}
 
 impl PubSubAudit {
-    pub fn new(topic: String) -> Self { Self { topic } }
+    pub fn new(topic: String) -> Self {
+        Self { topic }
+    }
 }
 
 #[async_trait]

@@ -67,7 +67,7 @@ done
 # 3. Drive load with oha (Rust-native; structured JSON output).
 PAYLOAD='{"click_id":"l-1","correlation_id":"l","device":"mobile","geo":"US","hour_of_day":10,"query_intent":"x","ad_creative_id":"a","cerberus_score":0.5,"rpc_7d":1.0,"rpc_14d":1.0,"rpc_30d":1.0,"is_payday_week":false,"auction_pressure":0.5,"landing_path":"/","visits_prev_30d":0}'
 
-REPORT=$(oha --json -z "$DURATION" -c "$CONCURRENCY" \
+REPORT=$(oha --no-tui --output-format json -z "$DURATION" -c "$CONCURRENCY" \
   -m POST -H "content-type: application/json" -d "$PAYLOAD" \
   "http://127.0.0.1:${API_PORT}/v1/score")
 

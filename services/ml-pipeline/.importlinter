@@ -2,6 +2,7 @@
 ; mechanically enforced = anti-pattern).
 [importlinter]
 root_package = msm_ml
+include_external_packages = True
 
 [importlinter:contract:layers]
 name = Layered architecture

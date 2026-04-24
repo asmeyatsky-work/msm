@@ -10,7 +10,7 @@
 
 #![forbid(unsafe_code)]
 
-pub mod score_click;
 pub mod explain_click;
-pub use score_click::{ScoreClick, ScoreClickDeps, ScoreClickError};
+pub mod score_click;
 pub use explain_click::{ExplainClick, ExplainClickError};
+pub use score_click::{ScoreClick, ScoreClickDeps, ScoreClickError};

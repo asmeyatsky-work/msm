@@ -1,5 +1,6 @@
 [importlinter]
 root_package = msm_breaker
+include_external_packages = True
 
 [importlinter:contract:layers]
 name = Layered architecture

@@ -1,9 +1,9 @@
 use async_trait::async_trait;
-use tokio::sync::RwLock;
 use msm_scoring_domain::{
     guardrails::KillSwitch,
     ports::{ConfigSource, PortError},
 };
+use tokio::sync::RwLock;
 
 /// Runtime-mutable config pulled from Secret Manager / GCS config object.
 /// §4: secrets never in env defaults; loaded at startup via Workload Identity.
@@ -21,7 +21,14 @@ struct Inner {
 
 impl RuntimeConfig {
     pub fn new(kill: bool, bounds_min: f64, bounds_max: f64) -> Self {
-        Self { inner: RwLock::new(Inner { kill, bounds_min, bounds_max, canary_bp: 10_000 }) }
+        Self {
+            inner: RwLock::new(Inner {
+                kill,
+                bounds_min,
+                bounds_max,
+                canary_bp: 10_000,
+            }),
+        }
     }
     pub async fn set_canary_bp(&self, bp: u16) {
         self.inner.write().await.canary_bp = bp;
@@ -31,7 +38,8 @@ impl RuntimeConfig {
     }
     pub async fn set_bounds(&self, min: f64, max: f64) {
         let mut g = self.inner.write().await;
-        g.bounds_min = min; g.bounds_max = max;
+        g.bounds_min = min;
+        g.bounds_max = max;
     }
 }
 

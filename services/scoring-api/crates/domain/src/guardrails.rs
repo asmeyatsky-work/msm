@@ -1,13 +1,16 @@
 //! PRD §5 Safety Guardrails — first-class domain logic.
 //! All rules here are pure; §3.1 forbids business logic in adapters.
 
-use serde::{Deserialize, Serialize};
-use crate::prediction::Rpc;
 use crate::errors::DomainError;
+use crate::prediction::Rpc;
+use serde::{Deserialize, Serialize};
 
 /// Hard min/max. Predictions outside are rejected in favor of tCPA fallback.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct PredictionBounds { min: f64, max: f64 }
+pub struct PredictionBounds {
+    min: f64,
+    max: f64,
+}
 
 impl PredictionBounds {
     pub fn try_new(min: f64, max: f64) -> Result<Self, DomainError> {
@@ -15,7 +18,10 @@ impl PredictionBounds {
             return Err(DomainError::InvalidRpc(format!("min={min} max={max}")));
         }
         if min > max {
-            return Err(DomainError::BoundsInverted { min: min.to_string(), max: max.to_string() });
+            return Err(DomainError::BoundsInverted {
+                min: min.to_string(),
+                max: max.to_string(),
+            });
         }
         Ok(Self { min, max })
     }
@@ -23,17 +29,27 @@ impl PredictionBounds {
         let v = rpc.value();
         v >= self.min && v <= self.max
     }
-    pub fn min(&self) -> f64 { self.min }
-    pub fn max(&self) -> f64 { self.max }
+    pub fn min(&self) -> f64 {
+        self.min
+    }
+    pub fn max(&self) -> f64 {
+        self.max
+    }
 }
 
 /// Single-config kill switch. PRD §5: "disable the feed instantly without code deployment."
 #[derive(Debug, Clone, Copy)]
-pub struct KillSwitch { engaged: bool }
+pub struct KillSwitch {
+    engaged: bool,
+}
 
 impl KillSwitch {
-    pub fn new(engaged: bool) -> Self { Self { engaged } }
-    pub fn is_engaged(self) -> bool { self.engaged }
+    pub fn new(engaged: bool) -> Self {
+        Self { engaged }
+    }
+    pub fn is_engaged(self) -> bool {
+        self.engaged
+    }
 }
 
 /// Circuit breaker state machine. Transitions are pure; timeouts are injected by the
@@ -66,12 +82,18 @@ pub struct AnomalyWindow {
 
 impl AnomalyWindow {
     pub fn new(threshold: f64) -> Self {
-        Self { total: 0, null_or_zero: 0, threshold }
+        Self {
+            total: 0,
+            null_or_zero: 0,
+            threshold,
+        }
     }
     #[must_use]
     pub fn record(mut self, rpc: Rpc) -> Self {
         self.total += 1;
-        if rpc.value() == 0.0 { self.null_or_zero += 1; }
+        if rpc.value() == 0.0 {
+            self.null_or_zero += 1;
+        }
         self
     }
     pub fn breached(&self) -> bool {
@@ -98,7 +120,9 @@ mod tests {
 
     #[test]
     fn breaker_open_blocks_until_cooloff() {
-        let s = CircuitBreakerState::Open { opened_at_epoch_ms: 1000 };
+        let s = CircuitBreakerState::Open {
+            opened_at_epoch_ms: 1000,
+        };
         assert!(!s.allows_call(1500, 1000));
         assert!(s.allows_call(2001, 1000));
     }

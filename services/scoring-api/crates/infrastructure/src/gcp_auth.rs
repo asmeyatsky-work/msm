@@ -5,7 +5,10 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 #[derive(Clone, Debug)]
-struct CachedToken { value: String, expires_at: Instant }
+struct CachedToken {
+    value: String,
+    expires_at: Instant,
+}
 
 pub struct MetadataTokenSource {
     http: reqwest::Client,
@@ -15,7 +18,10 @@ pub struct MetadataTokenSource {
 
 impl MetadataTokenSource {
     pub fn new(timeout: Duration) -> Self {
-        let http = reqwest::Client::builder().timeout(timeout).build().expect("client");
+        let http = reqwest::Client::builder()
+            .timeout(timeout)
+            .build()
+            .expect("client");
         Self {
             http,
             cache: RwLock::new(None),
@@ -30,13 +36,21 @@ impl MetadataTokenSource {
                 return Ok(c.value);
             }
         }
-        let resp = self.http.get(&self.metadata_url)
-            .header("Metadata-Flavor", "Google").send().await
+        let resp = self
+            .http
+            .get(&self.metadata_url)
+            .header("Metadata-Flavor", "Google")
+            .send()
+            .await
             .map_err(|e| e.to_string())?;
         if !resp.status().is_success() {
             return Err(format!("metadata status {}", resp.status()));
         }
-        #[derive(serde::Deserialize)] struct T { access_token: String, expires_in: u64 }
+        #[derive(serde::Deserialize)]
+        struct T {
+            access_token: String,
+            expires_in: u64,
+        }
         let t: T = resp.json().await.map_err(|e| e.to_string())?;
         let cached = CachedToken {
             value: t.access_token.clone(),
