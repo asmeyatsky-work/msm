@@ -126,7 +126,10 @@ jobs:
 
   deploy-prod:
     needs: [build-push, deploy-staging]
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Prod opt-in: set repo variable DEPLOY_PROD=true only when prod
+    # secrets (GCP_WIF_PROVIDER_PROD, GCP_CI_SA_PROD, GCP_PROJECT_PROD,
+    # TF_STATE_BUCKET_PROD) are wired. Until then, prod jobs do not run.
+    if: startsWith(github.ref, 'refs/tags/v') && vars.DEPLOY_PROD == 'true'
     runs-on: ubuntu-latest
     environment: prod  # requires GitHub environment approval
     steps:
