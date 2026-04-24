@@ -12,3 +12,4 @@ target/
 *.tfstate
 *.tfstate.*
 .DS_Store
+contract-tests/.out/

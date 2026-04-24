@@ -77,6 +77,20 @@ jobs:
       - name: supply chain (§4 npm audit)
         run: npm audit --audit-level=high
 
+  proto-parity:
+    # §1: Protobuf is the cross-service contract — verify Rust ↔ Python wire parity.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: parity test
+        run: bash contract-tests/parity.sh
+
   sbom:
     # §4: SBOM at build.
     runs-on: ubuntu-latest

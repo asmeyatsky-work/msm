@@ -11,7 +11,7 @@ use msm_scoring_application::{ScoreClick, ScoreClickDeps};
 use msm_scoring_domain::{
     ClickFeatures, PredictionSource,
     click::ClickFeaturesInput,
-    ports::{AuditSink, AuditEvent, Clock, DataLayerRevenue, PortError},
+    ports::{AuditSink, AuditEvent, Clock, DataLayerRevenue, PredictionSink, PredictionRecord, PortError},
     Rpc,
 };
 use msm_scoring_infrastructure::{VertexEndpoint, RuntimeConfig};
@@ -20,6 +20,11 @@ use async_trait::async_trait;
 struct NullAudit;
 #[async_trait] impl AuditSink for NullAudit {
     async fn record(&self, _: AuditEvent) -> Result<(), PortError> { Ok(()) }
+}
+
+struct NullPredictions;
+#[async_trait] impl PredictionSink for NullPredictions {
+    async fn record(&self, _: PredictionRecord) -> Result<(), PortError> { Ok(()) }
 }
 
 struct StaticDataLayer(f64);
@@ -58,12 +63,15 @@ fn build_uc(vertex_url: String) -> ScoreClick {
         clock: Arc::new(FixedClock(0)),
         config: Arc::new(RuntimeConfig::new(false, 0.1, 100.0)),
         audit: Arc::new(NullAudit),
+        predictions: Arc::new(NullPredictions),
         model_timeout: Duration::from_millis(200),
         breaker_cool_off: Duration::from_secs(30),
         anomaly_threshold: 0.03,
         clv: None,
         clv_premium: None,
         clv_timeout: Duration::from_millis(200),
+        feature_store: None,
+        feature_store_timeout: Duration::from_millis(50),
     };
     ScoreClick::new(deps)
 }

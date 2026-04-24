@@ -37,6 +37,37 @@ resource "google_pubsub_topic" "predictions" {
   name = "rpc-predictions-${var.env}"
 }
 
+# Shadow Production sink (PRD §4.2): Pub/Sub → BigQuery predictions table.
+resource "google_bigquery_table" "predictions" {
+  dataset_id = google_bigquery_dataset.rpc.dataset_id
+  table_id   = "rpc_predictions"
+  time_partitioning {
+    type  = "DAY"
+    field = "predicted_at"
+  }
+  schema = jsonencode([
+    { name = "click_id",       type = "STRING",    mode = "REQUIRED" },
+    { name = "correlation_id", type = "STRING",    mode = "NULLABLE" },
+    { name = "predicted_rpc",  type = "FLOAT64",   mode = "REQUIRED" },
+    { name = "source",         type = "STRING",    mode = "REQUIRED" },
+    { name = "model_version",  type = "STRING",    mode = "NULLABLE" },
+    { name = "ts_ms",          type = "INT64",     mode = "REQUIRED" },
+    { name = "predicted_at",   type = "TIMESTAMP", mode = "REQUIRED" },
+  ])
+}
+
+resource "google_pubsub_subscription" "predictions_to_bq" {
+  name  = "rpc-predictions-bq-${var.env}"
+  topic = google_pubsub_topic.predictions.name
+
+  bigquery_config {
+    table               = "${var.project_id}.${google_bigquery_dataset.rpc.dataset_id}.${google_bigquery_table.predictions.table_id}"
+    use_topic_schema    = false
+    write_metadata      = false
+    drop_unknown_fields = true
+  }
+}
+
 resource "google_pubsub_topic" "audit" {
   name = "rpc-audit-${var.env}"
   # §4: append-only; separate IAM attached out-of-band to `rpc-audit-writer` SA.

@@ -16,6 +16,7 @@ members = [
     "crates/application",
     "crates/infrastructure",
     "crates/presentation",
+    "crates/contract",
 ]
 
 [workspace.package]
@@ -30,8 +31,13 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
-tracing-opentelemetry = "0.25"
-opentelemetry = "0.24"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+tracing-opentelemetry = "0.28"
+opentelemetry = "0.27"
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic"] }
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
 async-trait = "0.1"
 axum = "0.7"
 tower = "0.5"

@@ -5,14 +5,15 @@
 
 use std::sync::Arc;
 use std::time::Duration;
-use axum::{routing::post, Router, Json, http::StatusCode, extract::State};
+use axum::{routing::{post, get}, Router, Json, http::StatusCode, extract::{State, Request}, middleware::{self, Next}, response::Response};
+use std::time::Instant;
 use serde::{Deserialize, Serialize};
 
 use msm_scoring_application::{ScoreClick, ScoreClickDeps, ExplainClick};
 use msm_scoring_domain::click::{ClickFeatures, ClickFeaturesInput};
 use msm_scoring_infrastructure::{
     VertexEndpoint, VertexExplain, BigQueryDataLayer, SystemClock,
-    RuntimeConfig, SecretManagerConfig, PubSubAudit,
+    RuntimeConfig, SecretManagerConfig, PubSubAudit, PubSubPredictions,
 };
 use msm_scoring_domain::ports::ConfigSource;
 
@@ -118,9 +119,36 @@ async fn explain_handler(
 
 async fn healthz() -> &'static str { "ok" }
 
+async fn metrics_handler(
+    State(handle): State<metrics_exporter_prometheus::PrometheusHandle>,
+) -> String {
+    handle.render()
+}
+
+/// RED middleware (§6): Rate / Errors / Duration per endpoint.
+async fn red_middleware(req: Request, next: Next) -> Response {
+    let path = req.uri().path().to_string();
+    let method = req.method().to_string();
+    let start = Instant::now();
+    let resp = next.run(req).await;
+    let status = resp.status().as_u16();
+    let labels = [
+        ("path", path),
+        ("method", method),
+        ("status", status.to_string()),
+    ];
+    metrics::counter!("http_requests_total", &labels).increment(1);
+    metrics::histogram!("http_request_duration_seconds", &labels)
+        .record(start.elapsed().as_secs_f64());
+    if status >= 500 {
+        metrics::counter!("http_request_errors_total", &labels).increment(1);
+    }
+    resp
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber_init();
+    init_telemetry()?;
 
     // §4: never read secrets from env-default; a non-present endpoint URL means
     // the service refuses to start.
@@ -157,6 +185,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         clock: Arc::new(SystemClock),
         config,
         audit: Arc::new(PubSubAudit::new("scoring-audit".into())),
+        predictions: Arc::new(PubSubPredictions::new(
+            std::env::var("GCP_PROJECT").map_err(|_| "GCP_PROJECT required")?,
+            std::env::var("PREDICTIONS_TOPIC").unwrap_or_else(|_| "rpc-predictions".into()),
+            Duration::from_millis(200),
+        )),
         model_timeout: Duration::from_millis(80),       // PRD §2.2: <100ms budget
         breaker_cool_off: Duration::from_secs(30),
         anomaly_threshold: 0.03,                         // PRD §5: >3% null/zero
@@ -178,6 +211,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => None,
         },
         clv_timeout: Duration::from_millis(80),
+        feature_store: match (std::env::var("GCP_REGION").ok(), std::env::var("FEATURE_VIEW").ok()) {
+            (Some(region), Some(fv)) => {
+                let arc: Arc<dyn msm_scoring_domain::ports::FeatureStore> =
+                    Arc::new(msm_scoring_infrastructure::VertexFeatureStore::new(
+                        region, fv, Duration::from_millis(40),
+                    ));
+                Some(arc)
+            }
+            _ => None,
+        },
+        feature_store_timeout: Duration::from_millis(40),
     };
     let use_case = Arc::new(ScoreClick::new(deps));
 
@@ -188,11 +232,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Duration::from_millis(1500), // explain is slow; off hot path
     ));
 
-    let app = Router::new()
-        .route("/healthz", axum::routing::get(healthz))
+    // Prometheus registry for /metrics (scraped by Cloud Monitoring Managed Service).
+    let prom = metrics_exporter_prometheus::PrometheusBuilder::new()
+        .install_recorder()
+        .map_err(|e| format!("prometheus recorder: {e}"))?;
+
+    let app_state = AppState { use_case, explain };
+    let api = Router::new()
+        .route("/healthz", get(healthz))
         .route("/v1/score", post(score_handler))
         .route("/v1/explain", post(explain_handler))
-        .with_state(AppState { use_case, explain });
+        .with_state(app_state)
+        .layer(middleware::from_fn(red_middleware));
+
+    let metrics_router = Router::new()
+        .route("/metrics", get(metrics_handler))
+        .with_state(prom);
+
+    let app = api.merge(metrics_router);
 
     let addr = std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".into());
     let listener = tokio::net::TcpListener::bind(&addr).await?;
@@ -201,32 +258,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn tracing_subscriber_init() {
-    // Structured JSON logs, correlation id in span fields (§6).
-    // Minimal init to avoid pulling in a heavy formatter in this scaffold.
-    use tracing::Level;
-    let _ = tracing::subscriber::set_global_default(
-        tracing_subscriber_fallback::FallbackSubscriber::new(Level::INFO),
-    );
-}
+/// §6: structured JSON logs + OTLP traces. Correlation id flows via span fields.
+fn init_telemetry() -> Result<(), Box<dyn std::error::Error>> {
+    use tracing_subscriber::prelude::*;
+    use tracing_subscriber::EnvFilter;
 
-mod tracing_subscriber_fallback {
-    use tracing::{Event, Level, Metadata};
-    use tracing::span::{Attributes, Id, Record};
-    use tracing::subscriber::Subscriber;
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let json_layer = tracing_subscriber::fmt::layer().json().with_target(true);
 
-    pub struct FallbackSubscriber { level: Level }
-    impl FallbackSubscriber { pub fn new(level: Level) -> Self { Self { level } } }
+    let otlp_endpoint = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
+    let registry = tracing_subscriber::registry().with(filter).with(json_layer);
 
-    impl Subscriber for FallbackSubscriber {
-        fn enabled(&self, m: &Metadata<'_>) -> bool { *m.level() <= self.level }
-        fn new_span(&self, _: &Attributes<'_>) -> Id { Id::from_u64(1) }
-        fn record(&self, _: &Id, _: &Record<'_>) {}
-        fn record_follows_from(&self, _: &Id, _: &Id) {}
-        fn event(&self, event: &Event<'_>) {
-            eprintln!("{} {}", event.metadata().level(), event.metadata().target());
-        }
-        fn enter(&self, _: &Id) {}
-        fn exit(&self, _: &Id) {}
+    if let Some(endpoint) = otlp_endpoint {
+        use opentelemetry::trace::TracerProvider as _;
+        use opentelemetry_otlp::WithExportConfig;
+        let exporter = opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .with_endpoint(endpoint)
+            .build()?;
+        let provider = opentelemetry_sdk::trace::TracerProvider::builder()
+            .with_batch_exporter(exporter, opentelemetry_sdk::runtime::Tokio)
+            .build();
+        let tracer = provider.tracer("scoring-api");
+        opentelemetry::global::set_tracer_provider(provider);
+        let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+        registry.with(otel_layer).init();
+    } else {
+        registry.init();
     }
+    Ok(())
 }

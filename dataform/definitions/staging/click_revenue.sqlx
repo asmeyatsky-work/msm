@@ -1,0 +1,33 @@
+config {
+  type: "table",
+  schema: "rpc_estimator",
+  description: "One row per click joined to realized revenue within the conversion window.",
+  bigquery: {
+    partitionBy: "DATE(click_ts)",
+    clusterBy: ["device", "geo"],
+  },
+  assertions: {
+    nonNull: ["click_id", "click_ts"],
+    uniqueKey: ["click_id"],
+  },
+}
+
+SELECT
+  c.click_id,
+  c.click_ts,
+  UNIX_MILLIS(c.click_ts) AS click_ts_ms,
+  c.device,
+  c.geo,
+  EXTRACT(HOUR FROM c.click_ts) AS hour_of_day,
+  c.query_intent,
+  c.ad_creative_id,
+  c.cerberus_score,
+  c.landing_path,
+  c.visits_prev_30d,
+  COALESCE(SUM(r.revenue), 0.0) AS target_revenue
+FROM ${ref("cm360_clicks")} c
+LEFT JOIN ${ref("sales_ledger")} r
+  ON  r.click_id = c.click_id
+  AND r.revenue_ts BETWEEN c.click_ts
+      AND TIMESTAMP_ADD(c.click_ts, INTERVAL ${dataform.projectConfig.vars.conversion_window_days || 30} DAY)
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11

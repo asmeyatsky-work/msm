@@ -107,6 +107,18 @@ impl ClickFeatures {
     pub fn rpc_7d(&self) -> f64 { self.rpc_7d }
     pub fn rpc_14d(&self) -> f64 { self.rpc_14d }
     pub fn rpc_30d(&self) -> f64 { self.rpc_30d }
+    pub fn visits_prev_30d(&self) -> u32 { self.visits_prev_30d }
+
+    /// Returns a new instance with fresh rolling signals (§3.3 immutable; state
+    /// changes return new instances). NaN or negative overrides are ignored.
+    #[must_use]
+    pub fn with_overrides(mut self, o: &crate::ports::FeatureOverrides) -> Self {
+        if let Some(v) = o.rpc_7d   { if v.is_finite() && v >= 0.0 { self.rpc_7d  = v; } }
+        if let Some(v) = o.rpc_14d  { if v.is_finite() && v >= 0.0 { self.rpc_14d = v; } }
+        if let Some(v) = o.rpc_30d  { if v.is_finite() && v >= 0.0 { self.rpc_30d = v; } }
+        if let Some(v) = o.visits_prev_30d { self.visits_prev_30d = v; }
+        self
+    }
 }
 
 #[cfg(test)]

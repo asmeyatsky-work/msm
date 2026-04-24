@@ -1,0 +1,27 @@
+config {
+  type: "view",
+  schema: "rpc_estimator",
+  description: "Training frame consumed by services/ml-pipeline BigQueryFeatureRepo. Shape matches msm_ml.domain.FeatureVector.",
+  assertions: {
+    nonNull: ["click_id", "target_revenue"],
+  },
+}
+
+SELECT
+  cr.click_id,
+  cr.click_ts_ms,
+  cr.device,
+  cr.geo,
+  cr.hour_of_day,
+  cr.cerberus_score,
+  COALESCE(rr.rpc_7d,  0.0) AS rpc_7d,
+  COALESCE(rr.rpc_14d, 0.0) AS rpc_14d,
+  COALESCE(rr.rpc_30d, 0.0) AS rpc_30d,
+  -- Contextual features: payday week (US biweekly convention), auction pressure.
+  MOD(EXTRACT(WEEK FROM cr.click_ts), 2) = 0 AS is_payday_week,
+  COALESCE(a.auction_pressure, 0.5) AS auction_pressure,
+  cr.visits_prev_30d,
+  cr.target_revenue
+FROM ${ref("click_revenue")} cr
+LEFT JOIN ${ref("rolling_rpc")} rr USING (click_id)
+LEFT JOIN ${ref("sa360_auctions")} a ON a.click_id = cr.click_id

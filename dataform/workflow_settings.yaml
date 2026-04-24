@@ -1,0 +1,7 @@
+# Dataform project for the Predictive RPC Estimator feature pipelines.
+# PRD §2.2: Dataform handles SQL transformation/matching on BigQuery.
+defaultProject: ${dataform.projectConfig.defaultDatabase}
+defaultLocation: US
+defaultDataset: rpc_estimator
+defaultAssertionDataset: rpc_estimator_assertions
+dataformCoreVersion: 3.0.0

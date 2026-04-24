@@ -1,0 +1,33 @@
+config {
+  type: "table",
+  schema: "rpc_estimator",
+  description: "Rolling 7/14/30-day RPC per click's (ad_creative, geo) bucket — PRD §3.1.",
+  bigquery: {
+    partitionBy: "DATE(click_ts)",
+  },
+}
+
+WITH base AS (
+  SELECT click_id, click_ts, ad_creative_id, geo, target_revenue
+  FROM ${ref("click_revenue")}
+)
+SELECT
+  b.click_id,
+  b.click_ts,
+  AVG(p.target_revenue) OVER (
+    PARTITION BY b.ad_creative_id, b.geo
+    ORDER BY UNIX_SECONDS(b.click_ts)
+    RANGE BETWEEN 7 * 86400  PRECEDING AND 1 PRECEDING
+  ) AS rpc_7d,
+  AVG(p.target_revenue) OVER (
+    PARTITION BY b.ad_creative_id, b.geo
+    ORDER BY UNIX_SECONDS(b.click_ts)
+    RANGE BETWEEN 14 * 86400 PRECEDING AND 1 PRECEDING
+  ) AS rpc_14d,
+  AVG(p.target_revenue) OVER (
+    PARTITION BY b.ad_creative_id, b.geo
+    ORDER BY UNIX_SECONDS(b.click_ts)
+    RANGE BETWEEN 30 * 86400 PRECEDING AND 1 PRECEDING
+  ) AS rpc_30d
+FROM base b
+JOIN base p USING (ad_creative_id, geo)

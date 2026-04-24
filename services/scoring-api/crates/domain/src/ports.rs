@@ -33,6 +33,22 @@ pub trait ClvEndpoint: Send + Sync {
     async fn predict(&self, features: &ClickFeatures) -> Result<Clv, PortError>;
 }
 
+/// Feature Store (PRD §2.2): online lookup of rolling RPC + session signals
+/// by click_id. Returns optional overrides; the use case merges them into the
+/// ClickFeatures. Never a blocker — failure degrades to request-body features.
+#[async_trait]
+pub trait FeatureStore: Send + Sync {
+    async fn lookup(&self, click_id: &str) -> Result<FeatureOverrides, PortError>;
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FeatureOverrides {
+    pub rpc_7d: Option<f64>,
+    pub rpc_14d: Option<f64>,
+    pub rpc_30d: Option<f64>,
+    pub visits_prev_30d: Option<u32>,
+}
+
 /// Injected clock so domain/application remain pure and testable.
 pub trait Clock: Send + Sync {
     fn now_epoch_ms(&self) -> u64;
@@ -49,6 +65,24 @@ pub trait ConfigSource: Send + Sync {
 #[async_trait]
 pub trait AuditSink: Send + Sync {
     async fn record(&self, event: AuditEvent) -> Result<(), PortError>;
+}
+
+/// Shadow Production sink (PRD §4.2) — append-only log of every prediction,
+/// including fallbacks, so a reconciliation job can grade quality vs. realized
+/// revenue without affecting bidding.
+#[async_trait]
+pub trait PredictionSink: Send + Sync {
+    async fn record(&self, record: PredictionRecord) -> Result<(), PortError>;
+}
+
+#[derive(Debug, Clone)]
+pub struct PredictionRecord {
+    pub click_id: String,
+    pub correlation_id: String,
+    pub predicted_rpc: f64,
+    pub source: &'static str,
+    pub model_version: String,
+    pub ts_ms: u64,
 }
 
 /// Model explanations endpoint (Vertex AI `:explain`). Distinct from `predict`

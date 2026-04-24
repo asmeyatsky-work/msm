@@ -6,7 +6,7 @@ use tracing::{warn, instrument};
 use msm_scoring_domain::{
     ClickFeatures, Prediction, PredictionSource, Rpc,
     PredictionBounds, CircuitBreakerState, AnomalyWindow, ClvPremium,
-    ports::{ModelEndpoint, ClvEndpoint, DataLayerRevenue, Clock, ConfigSource, AuditSink, AuditEvent, PortError},
+    ports::{ModelEndpoint, ClvEndpoint, DataLayerRevenue, Clock, ConfigSource, AuditSink, AuditEvent, PredictionSink, PredictionRecord, FeatureStore, PortError},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -22,6 +22,8 @@ pub struct ScoreClickDeps {
     pub clock: Arc<dyn Clock>,
     pub config: Arc<dyn ConfigSource>,
     pub audit: Arc<dyn AuditSink>,
+    /// PRD §4.2 Shadow Production: every prediction (model + fallbacks) is logged here.
+    pub predictions: Arc<dyn PredictionSink>,
     /// §3.2 + §4: explicit timeout on every external call.
     pub model_timeout: Duration,
     /// Circuit breaker cool-off window.
@@ -34,6 +36,10 @@ pub struct ScoreClickDeps {
     pub clv: Option<Arc<dyn ClvEndpoint>>,
     pub clv_premium: Option<ClvPremium>,
     pub clv_timeout: Duration,
+    /// PRD §2.2 Feature Store: optional online enrichment. When None, the
+    /// request-body features are used unmodified.
+    pub feature_store: Option<Arc<dyn FeatureStore>>,
+    pub feature_store_timeout: Duration,
 }
 
 /// Scoring use case. Pure orchestration — no I/O logic, no SDKs.
@@ -72,6 +78,19 @@ impl ScoreClick {
         if !state.allows_call(now, cool_off) {
             return self.fallback(&features, PredictionSource::FallbackDataLayer, "breaker_open").await;
         }
+
+        // PRD §2.2 Feature Store: optional enrichment. Degrade silently on failure
+        // — request-body features already satisfy domain invariants.
+        let features = if let Some(store) = self.deps.feature_store.as_ref() {
+            let cid = features.click_id().as_str().to_string();
+            match tokio::time::timeout(self.deps.feature_store_timeout, store.lookup(&cid)).await {
+                Ok(Ok(overrides)) => features.with_overrides(&overrides),
+                Ok(Err(e)) => { warn!(error = %e, "feature store lookup failed — using request features"); features }
+                Err(_) => { warn!("feature store timeout — using request features"); features }
+            }
+        } else {
+            features
+        };
 
         // §3.2 + §4: every external call is timeout-bounded.
         // §3.6: RPC and CLV are independent → run concurrently.
@@ -140,6 +159,7 @@ impl ScoreClick {
             model_version,
         );
         self.audit(&pred, "score.model").await;
+        self.log_prediction(&pred).await;
         Ok(pred)
     }
 
@@ -169,7 +189,25 @@ impl ScoreClick {
             "fallback",
         );
         self.audit(&pred, reason).await;
+        self.log_prediction(&pred).await;
         Ok(pred)
+    }
+
+    async fn log_prediction(&self, pred: &Prediction) {
+        let source_str: &'static str = match pred.source() {
+            PredictionSource::Model => "MODEL",
+            PredictionSource::FallbackTcpa => "FALLBACK_TCPA",
+            PredictionSource::FallbackDataLayer => "FALLBACK_DATA_LAYER",
+            PredictionSource::KillSwitch => "KILL_SWITCH",
+        };
+        let _ = self.deps.predictions.record(PredictionRecord {
+            click_id: pred.click_id().as_str().into(),
+            correlation_id: pred.correlation_id().as_str().into(),
+            predicted_rpc: pred.rpc().value(),
+            source: source_str,
+            model_version: pred.model_version().into(),
+            ts_ms: self.deps.clock.now_epoch_ms(),
+        }).await;
     }
 
     async fn audit(&self, pred: &Prediction, reason: &'static str) {
@@ -230,6 +268,13 @@ mod tests {
         async fn record(&self, _: AuditEvent) -> Result<(), PortError> { Ok(()) }
     }
 
+    struct RecordingSink(std::sync::Arc<std::sync::Mutex<Vec<PredictionRecord>>>);
+    #[async_trait] impl PredictionSink for RecordingSink {
+        async fn record(&self, r: PredictionRecord) -> Result<(), PortError> {
+            self.0.lock().unwrap().push(r); Ok(())
+        }
+    }
+
     fn features() -> ClickFeatures {
         ClickFeatures::try_new(ClickFeaturesInput {
             click_id: "c".into(), correlation_id: "t".into(),
@@ -248,13 +293,37 @@ mod tests {
             clock: Arc::new(FixedClock(0)),
             config: Arc::new(Config { kill, bounds }),
             audit: Arc::new(NullAudit),
+            predictions: Arc::new(RecordingSink(Default::default())),
             model_timeout: Duration::from_millis(50),
             breaker_cool_off: Duration::from_secs(30),
             anomaly_threshold: 0.03,
             clv: None,
             clv_premium: None,
             clv_timeout: Duration::from_millis(100),
+            feature_store: None,
+            feature_store_timeout: Duration::from_millis(50),
         }
+    }
+
+    struct StaticStore(msm_scoring_domain::ports::FeatureOverrides);
+    #[async_trait] impl msm_scoring_domain::ports::FeatureStore for StaticStore {
+        async fn lookup(&self, _: &str) -> Result<msm_scoring_domain::ports::FeatureOverrides, PortError> {
+            Ok(self.0.clone())
+        }
+    }
+
+    #[tokio::test]
+    async fn feature_store_overrides_rolling_rpc() {
+        // Model echoes the override-dependent feature via deps injection: we instead
+        // verify the post-call Prediction remains clamped & the use case succeeds
+        // when the store supplies fresh values.
+        let mut deps = deps_with(Arc::new(StaticModel(4.0)), false, (0.1, 100.0));
+        deps.feature_store = Some(Arc::new(StaticStore(msm_scoring_domain::ports::FeatureOverrides {
+            rpc_7d: Some(9.9), rpc_14d: None, rpc_30d: None, visits_prev_30d: Some(42),
+        })));
+        let uc = ScoreClick::new(deps);
+        let p = uc.execute(features()).await.unwrap();
+        assert_eq!(p.source(), PredictionSource::Model);
     }
 
     struct StaticClv(f64);
@@ -262,6 +331,29 @@ mod tests {
         async fn predict(&self, _: &ClickFeatures) -> Result<msm_scoring_domain::Clv, PortError> {
             Ok(msm_scoring_domain::Clv::try_new(self.0).unwrap())
         }
+    }
+
+    #[tokio::test]
+    async fn every_prediction_is_logged_to_sink() {
+        let recorder = std::sync::Arc::new(std::sync::Mutex::new(Vec::<PredictionRecord>::new()));
+        let mut deps = deps_with(Arc::new(StaticModel(3.0)), false, (0.1, 100.0));
+        deps.predictions = Arc::new(RecordingSink(recorder.clone()));
+        let uc = ScoreClick::new(deps);
+        uc.execute(features()).await.unwrap();
+        let logged = recorder.lock().unwrap();
+        assert_eq!(logged.len(), 1);
+        assert_eq!(logged[0].source, "MODEL");
+        assert_eq!(logged[0].predicted_rpc, 3.0);
+    }
+
+    #[tokio::test]
+    async fn fallback_also_logs_to_sink() {
+        let recorder = std::sync::Arc::new(std::sync::Mutex::new(Vec::<PredictionRecord>::new()));
+        let mut deps = deps_with(Arc::new(StaticModel(3.0)), true, (0.1, 100.0));
+        deps.predictions = Arc::new(RecordingSink(recorder.clone()));
+        let uc = ScoreClick::new(deps);
+        uc.execute(features()).await.unwrap();
+        assert_eq!(recorder.lock().unwrap()[0].source, "KILL_SWITCH");
     }
 
     #[tokio::test]

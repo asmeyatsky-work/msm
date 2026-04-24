@@ -1,0 +1,11 @@
+target/
+**/node_modules/
+**/__pycache__/
+**/.pytest_cache/
+**/dist/
+**/coverage/
+.git/
+.github/
+dashboard/
+docs/
+infra/
