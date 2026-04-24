@@ -134,6 +134,15 @@ impl ClickFeatures {
     pub fn visits_prev_30d(&self) -> u32 {
         self.visits_prev_30d
     }
+    pub fn hour_of_day(&self) -> u8 {
+        self.hour_of_day
+    }
+    pub fn is_payday_week(&self) -> bool {
+        self.is_payday_week
+    }
+    pub fn auction_pressure(&self) -> f64 {
+        self.auction_pressure
+    }
 
     /// Returns a new instance with fresh rolling signals (§3.3 immutable; state
     /// changes return new instances). NaN or negative overrides are ignored.

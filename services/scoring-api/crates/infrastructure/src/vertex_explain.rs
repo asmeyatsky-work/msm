@@ -32,14 +32,19 @@ impl VertexExplain {
 impl ExplainEndpoint for VertexExplain {
     async fn explain(&self, features: &ClickFeatures) -> Result<Attribution, PortError> {
         let token = self.tokens.token().await.map_err(PortError::Upstream)?;
+        // Match VertexEndpoint payload shape: 2D numeric array, feature order
+        // aligned with the trained model.
         let body = serde_json::json!({
-            "instances": [{
-                "click_id": features.click_id().as_str(),
-                "cerberus_score": features.cerberus_score(),
-                "rpc_7d": features.rpc_7d(),
-                "rpc_14d": features.rpc_14d(),
-                "rpc_30d": features.rpc_30d(),
-            }]
+            "instances": [[
+                features.hour_of_day() as f64,
+                features.cerberus_score(),
+                features.rpc_7d(),
+                features.rpc_14d(),
+                features.rpc_30d(),
+                if features.is_payday_week() { 1.0 } else { 0.0 },
+                features.auction_pressure(),
+                features.visits_prev_30d() as f64,
+            ]]
         });
         let resp = self
             .http
