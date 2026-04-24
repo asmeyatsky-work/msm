@@ -246,7 +246,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )),
         model_timeout: Duration::from_millis(model_timeout_ms),
         breaker_cool_off: Duration::from_secs(30),
-        anomaly_threshold: 0.03, // PRD §5: >3% null/zero
+        anomaly_threshold: std::env::var("ANOMALY_THRESHOLD")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0.03), // PRD §5: >3% null/zero default
         // PRD §6 Hero feature — enable when both endpoint + policy are set.
         clv: std::env::var("CLV_ENDPOINT_URL").ok().map(|url| {
             let arc: Arc<dyn msm_scoring_domain::ports::ClvEndpoint> = Arc::new(

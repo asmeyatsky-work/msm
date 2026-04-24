@@ -89,6 +89,17 @@ resource "google_cloud_run_v2_service" "scoring_api" {
         name  = "BQ_LEDGER_TABLE"
         value = "sales_ledger"
       }
+      # Staging tolerates more null/zero outputs because test traffic is
+      # skewed and the synthetic model extrapolates negatively on
+      # out-of-distribution inputs. Prod should use 0.03.
+      env {
+        name  = "ANOMALY_THRESHOLD"
+        value = "0.50"
+      }
+      env {
+        name  = "MODEL_TIMEOUT_MS"
+        value = "500"
+      }
     }
   }
 }
