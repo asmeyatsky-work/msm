@@ -49,33 +49,73 @@ resource "google_pubsub_topic" "predictions" {
   name = "rpc-predictions-${var.env}"
 }
 
-# Shadow Production sink (PRD §4.2): Pub/Sub → BigQuery predictions table.
+# Shadow Production sink (PRD §4.2).
+# Pub/Sub→BQ default schema: raw `data` STRING column; a view unpacks JSON.
 resource "google_bigquery_table" "predictions" {
-  dataset_id = google_bigquery_dataset.rpc.dataset_id
-  table_id   = "rpc_predictions"
+  dataset_id          = google_bigquery_dataset.rpc.dataset_id
+  table_id            = "rpc_predictions_raw"
+  deletion_protection = false
   time_partitioning {
     type  = "DAY"
-    field = "predicted_at"
+    field = "publish_time"
   }
   schema = jsonencode([
-    { name = "click_id", type = "STRING", mode = "REQUIRED" },
-    { name = "correlation_id", type = "STRING", mode = "NULLABLE" },
-    { name = "predicted_rpc", type = "FLOAT64", mode = "REQUIRED" },
-    { name = "source", type = "STRING", mode = "REQUIRED" },
-    { name = "model_version", type = "STRING", mode = "NULLABLE" },
-    { name = "ts_ms", type = "INT64", mode = "REQUIRED" },
-    { name = "predicted_at", type = "TIMESTAMP", mode = "REQUIRED" },
+    { name = "subscription_name", type = "STRING", mode = "NULLABLE" },
+    { name = "message_id", type = "STRING", mode = "NULLABLE" },
+    { name = "publish_time", type = "TIMESTAMP", mode = "REQUIRED" },
+    { name = "data", type = "STRING", mode = "NULLABLE" },
+    { name = "attributes", type = "STRING", mode = "NULLABLE" },
   ])
+}
+
+# Typed view over the raw Pub/Sub table — keeps the reconciliation contract stable.
+resource "google_bigquery_table" "predictions_view" {
+  dataset_id          = google_bigquery_dataset.rpc.dataset_id
+  table_id            = "rpc_predictions"
+  deletion_protection = false
+  view {
+    query          = <<-SQL
+      SELECT
+        JSON_EXTRACT_SCALAR(data, '$.click_id')       AS click_id,
+        JSON_EXTRACT_SCALAR(data, '$.correlation_id') AS correlation_id,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.predicted_rpc') AS FLOAT64) AS predicted_rpc,
+        JSON_EXTRACT_SCALAR(data, '$.source')         AS source,
+        JSON_EXTRACT_SCALAR(data, '$.model_version')  AS model_version,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.ts_ms') AS INT64) AS ts_ms,
+        publish_time                                   AS predicted_at
+      FROM `${var.project_id}.${google_bigquery_dataset.rpc.dataset_id}.rpc_predictions_raw`
+    SQL
+    use_legacy_sql = false
+  }
+  depends_on = [google_bigquery_table.predictions]
+}
+
+# Pub/Sub service agent needs BQ write + metadata read to hydrate the sink.
+resource "google_project_iam_member" "pubsub_bq_data_editor" {
+  project = var.project_id
+  role    = "roles/bigquery.dataEditor"
+  member  = "serviceAccount:service-${data.google_project.this.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "pubsub_bq_metadata" {
+  project = var.project_id
+  role    = "roles/bigquery.metadataViewer"
+  member  = "serviceAccount:service-${data.google_project.this.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
 
 resource "google_pubsub_subscription" "predictions_to_bq" {
   name  = "rpc-predictions-bq-${var.env}"
   topic = google_pubsub_topic.predictions.name
 
+  depends_on = [
+    google_project_iam_member.pubsub_bq_data_editor,
+    google_project_iam_member.pubsub_bq_metadata,
+  ]
+
   bigquery_config {
     table               = "${var.project_id}.${google_bigquery_dataset.rpc.dataset_id}.${google_bigquery_table.predictions.table_id}"
     use_topic_schema    = false
-    write_metadata      = false
+    write_metadata      = true   # required so publish_time / message_id columns get filled
     drop_unknown_fields = true
   }
 }
@@ -102,6 +142,29 @@ resource "google_secret_manager_secret" "ssgtm_api_key" {
   replication {
     auto {}
   }
+}
+
+resource "google_secret_manager_secret" "vertex_endpoint_url" {
+  secret_id = "vertex-endpoint-url-${var.env}"
+  replication {
+    auto {}
+  }
+}
+
+# Placeholder Vertex endpoint URL — first deploy just needs scoring-api to
+# boot. Replace the secret value once a real model is registered.
+resource "google_secret_manager_secret_version" "vertex_endpoint_url_initial" {
+  secret      = google_secret_manager_secret.vertex_endpoint_url.id
+  secret_data = "https://vertex-placeholder.example.com/predict"
+  lifecycle {
+    ignore_changes = [secret_data, enabled]
+  }
+}
+
+resource "google_secret_manager_secret_iam_member" "scoring_api_vertex_url" {
+  secret_id = google_secret_manager_secret.vertex_endpoint_url.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.scoring_api.email}"
 }
 
 # --- Runtime config (PRD §5 Kill Switch without redeploy) ---

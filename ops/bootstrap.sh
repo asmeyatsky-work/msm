@@ -20,6 +20,16 @@ set -euo pipefail
 : "${REGION:=us-central1}"
 : "${ENV:=staging}"
 
+echo "==> 0/4 Enable required APIs"
+gcloud --project="$PROJECT" services enable \
+  iam.googleapis.com iamcredentials.googleapis.com \
+  run.googleapis.com cloudresourcemanager.googleapis.com \
+  artifactregistry.googleapis.com bigquery.googleapis.com \
+  pubsub.googleapis.com secretmanager.googleapis.com \
+  cloudbuild.googleapis.com cloudscheduler.googleapis.com \
+  aiplatform.googleapis.com storage.googleapis.com \
+  serviceusage.googleapis.com sts.googleapis.com --quiet
+
 echo "==> 1/4 Artifact Registry"
 gcloud --project="$PROJECT" artifacts repositories create rpc-estimator \
   --repository-format=docker --location="$REGION" \
@@ -42,11 +52,11 @@ terraform apply -auto-approve -lock-timeout=5m \
   -var="project_id=${PROJECT}" \
   -var="region=${REGION}" \
   -var="env=${ENV}" \
-  -var="image_scoring_api=gcr.io/google-containers/pause:3.9" \
-  -var="image_reconciliation=gcr.io/google-containers/pause:3.9" \
-  -var="image_activation=gcr.io/google-containers/pause:3.9" \
-  -var="image_breaker=gcr.io/google-containers/pause:3.9" \
-  -var="image_ml_pipeline=gcr.io/google-containers/pause:3.9"
+  -var="image_scoring_api=gcr.io/cloudrun/hello" \
+  -var="image_reconciliation=gcr.io/cloudrun/hello" \
+  -var="image_activation=gcr.io/cloudrun/hello" \
+  -var="image_breaker=gcr.io/cloudrun/hello" \
+  -var="image_ml_pipeline=gcr.io/cloudrun/hello"
 
 WIF=$(terraform output -raw wif_provider_resource)
 CI_SA=$(terraform output -raw ci_service_account)
