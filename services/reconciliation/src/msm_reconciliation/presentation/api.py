@@ -6,13 +6,21 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from msm_reconciliation.application import LoadReconciliationWindow
-from msm_reconciliation.infrastructure.bigquery_repo import BigQueryReconciliationRepo
 
 app = FastAPI(title="msm-reconciliation")
 
-_project = os.environ["GCP_PROJECT"]
-_dataset = os.environ["BQ_DATASET"]
-_use_case = LoadReconciliationWindow(BigQueryReconciliationRepo(_project, _dataset))
+
+def _build_repo():
+    """Pick the backend: memory (E2E / local) or BigQuery (prod)."""
+    mock_path = os.environ.get("RECONCILIATION_MOCK_JSON")
+    if mock_path:
+        from msm_reconciliation.infrastructure.memory_repo import MemoryReconciliationRepo
+        return MemoryReconciliationRepo.from_json_file(mock_path)
+    from msm_reconciliation.infrastructure.bigquery_repo import BigQueryReconciliationRepo
+    return BigQueryReconciliationRepo(os.environ["GCP_PROJECT"], os.environ["BQ_DATASET"])
+
+
+_use_case = LoadReconciliationWindow(_build_repo())
 
 
 class RowOut(BaseModel):

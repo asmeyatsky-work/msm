@@ -25,11 +25,11 @@ jobs:
         run: |
           cargo install cargo-llvm-cov --locked
           cargo llvm-cov --workspace --summary-only
-      - name: supply chain (§4 cargo-audit)
-        # cargo-deny re-enabled once deny.toml is validated against current schema.
+      - name: supply chain (§4 cargo-deny + cargo-audit)
         run: |
-          cargo install cargo-audit --locked
-          cargo audit || true
+          cargo install cargo-deny cargo-audit --locked
+          cargo deny check
+          cargo audit
 
   python-ml-pipeline:
     runs-on: ubuntu-latest
@@ -49,7 +49,7 @@ jobs:
       - name: tests + coverage (§5)
         run: pytest
       - name: supply chain (§4 pip-audit)
-        run: pip-audit || true
+        run: pip-audit
 
   python-mcp-servers:
     runs-on: ubuntu-latest
@@ -71,14 +71,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
-      # No package-lock.json committed yet — use install; CD will use ci once lock is generated.
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - name: boundaries (§2)
         run: npm run lint
       - name: type check
         run: npx tsc --noEmit
       - name: supply chain (§4 npm audit)
-        run: npm audit --audit-level=high || true  # informational until lockfile lands
+        run: npm audit --audit-level=high
 
   proto-parity:
     # §1: Protobuf is the cross-service contract — verify Rust ↔ Python wire parity.

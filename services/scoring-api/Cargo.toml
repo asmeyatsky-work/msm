@@ -22,7 +22,8 @@ members = [
 [workspace.package]
 edition = "2021"
 rust-version = "1.78"
-license = "Proprietary"
+license = "LicenseRef-Proprietary"
+publish = false
 
 [workspace.dependencies]
 # Pinned for reproducibility; lockfile committed per §4.

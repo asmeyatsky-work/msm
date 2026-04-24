@@ -17,16 +17,20 @@ pub struct PubSubPredictions {
 
 impl PubSubPredictions {
     pub fn new(project: String, topic: String, per_call_timeout: Duration) -> Self {
+        let api_root = std::env::var("PUBSUB_API_ROOT")
+            .unwrap_or_else(|_| "https://pubsub.googleapis.com".into());
+        Self::with_api_root(api_root, project, topic, per_call_timeout)
+    }
+
+    pub fn with_api_root(
+        api_root: String, project: String, topic: String, per_call_timeout: Duration,
+    ) -> Self {
         let http = reqwest::Client::builder()
-            .timeout(per_call_timeout)
-            .build()
-            .expect("client");
+            .timeout(per_call_timeout).build().expect("client");
         Self {
             http,
             tokens: Arc::new(MetadataTokenSource::new(per_call_timeout)),
-            url: format!(
-                "https://pubsub.googleapis.com/v1/projects/{project}/topics/{topic}:publish"
-            ),
+            url: format!("{api_root}/v1/projects/{project}/topics/{topic}:publish"),
         }
     }
 }

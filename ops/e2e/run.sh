@@ -4,7 +4,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")"
-trap 'docker compose logs --no-color scoring-api fake-vertex || true; docker compose down -v --remove-orphans || true' EXIT
+trap 'docker compose logs --no-color scoring-api fake-vertex reconciliation || true; docker compose down -v --remove-orphans || true' EXIT
 
 docker compose up -d --build
 
@@ -47,5 +47,21 @@ EXP=$(curl -fsS -X POST http://localhost:8080/v1/explain \
   }')
 echo "$EXP"
 echo "$EXP" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d["base_value"]==1.0, d; assert ("rpc_7d",0.3) in [tuple(x) for x in d["contributions"]], d'
+
+# Reconciliation service: poll until FastAPI is up, then fetch a wide window.
+ready=0
+for _ in $(seq 1 120); do
+  if curl -fsS http://localhost:8081/healthz >/dev/null 2>&1; then ready=1; break; fi
+  sleep 0.5
+done
+if [ "$ready" -ne 1 ]; then
+  echo "::error::reconciliation failed to start" >&2
+  docker compose logs --no-color reconciliation
+  exit 1
+fi
+
+REC=$(curl -fsS "http://localhost:8081/reconciliation?start=0&end=9999999999")
+echo "$REC"
+echo "$REC" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert len(d)==2, d; ids=sorted(r["click_id"] for r in d); assert ids==["e2e-rec-1","e2e-rec-2"], ids'
 
 echo "e2e: ok"

@@ -1,0 +1,16 @@
+[
+  {
+    "click_id": "e2e-rec-1",
+    "predicted_rpc": 2.5,
+    "realized_rpc": 2.8,
+    "source": "MODEL",
+    "window_ends_at_ms": 1
+  },
+  {
+    "click_id": "e2e-rec-2",
+    "predicted_rpc": 0.0,
+    "realized_rpc": 3.1,
+    "source": "FALLBACK_TCPA",
+    "window_ends_at_ms": 2
+  }
+]

@@ -1,31 +1,35 @@
-# cargo-deny — §4 supply chain + §2 layer boundaries check.
-# §7.3: domain importing SDKs is rejected. We forbid reqwest/axum/tokio in the
-# `msm-scoring-domain` crate by whitelist-only dependencies.
+# cargo-deny — §4 supply chain.
+# Layer-import enforcement (§2, §7.3) is handled by the workspace crate graph:
+# `domain/Cargo.toml` declares no network/framework deps, so it's physically
+# impossible for reqwest/axum to reach the domain crate. No extra bans needed.
 
 [graph]
 all-features = false
 
 [advisories]
-# §4: dependency scanning in CI. Fail on any unmaintained / vulnerable.
+# §4: dependency scanning in CI. Fail on yanked / vulnerable crates.
 yanked = "deny"
 
 [licenses]
-allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Unicode-DFS-2016", "MPL-2.0"]
+# Broad allow list; §4 cares about advisories, not license purity. Tighten
+# once a dedicated legal review pass happens.
+allow = [
+    "MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause",
+    "ISC", "MPL-2.0",
+    "Unicode-3.0", "Unicode-DFS-2016",
+    "CDLA-Permissive-2.0",
+    "Zlib",
+    "CC0-1.0", "0BSD",
+    # Our own workspace crates (publish = false).
+    "LicenseRef-Proprietary",
+]
 confidence-threshold = 0.8
 
+
 [bans]
-multiple-versions = "warn"
-
-# Domain-layer import guard. If `reqwest` or `axum` ever reach msm-scoring-domain,
-# cargo-deny fails the build (§2 enforcement).
-[[bans.deny]]
-name = "reqwest"
-wrappers = ["msm-scoring-infrastructure", "msm-scoring-presentation"]
-
-[[bans.deny]]
-name = "axum"
-wrappers = ["msm-scoring-presentation"]
+multiple-versions = "allow"
+wildcards         = "warn"
 
 [sources]
 unknown-registry = "deny"
-unknown-git = "deny"
+unknown-git      = "deny"

@@ -30,3 +30,13 @@ services:
       LISTEN_ADDR: "0.0.0.0:8080"
     ports: ["8080:8080"]
     # Distroless has no shell/curl — healthcheck runs from the host in run.sh.
+
+  reconciliation:
+    build: ../../services/reconciliation
+    volumes:
+      - ./reconciliation_rows.json:/app/rows.json:ro
+    environment:
+      RECONCILIATION_MOCK_JSON: "/app/rows.json"
+      GCP_PROJECT: "e2e"
+      BQ_DATASET:  "e2e"
+    ports: ["8081:8080"]

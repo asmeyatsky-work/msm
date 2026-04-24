@@ -23,13 +23,13 @@ struct SecretPayload {
     bounds_min: f64,
     #[serde(default = "default_max")]
     bounds_max: f64,
+    /// PRD §4.3 staged activation ratio; default = 100%.
+    #[serde(default = "default_canary_bp")]
+    canary_bp: u16,
 }
-fn default_min() -> f64 {
-    0.01
-}
-fn default_max() -> f64 {
-    500.0
-}
+fn default_min() -> f64 { 0.01 }
+fn default_max() -> f64 { 500.0 }
+fn default_canary_bp() -> u16 { 10_000 }
 
 pub struct SecretManagerConfig {
     cached: Arc<RwLock<SecretPayload>>,
@@ -44,14 +44,26 @@ impl SecretManagerConfig {
         refresh_every: Duration,
         per_call_timeout: Duration,
     ) -> Result<Self, String> {
+        let api_root = std::env::var("SECRETMANAGER_API_ROOT")
+            .unwrap_or_else(|_| "https://secretmanager.googleapis.com".into());
+        Self::with_api_root(api_root, project, secret_id, refresh_every, per_call_timeout).await
+    }
+
+    pub async fn with_api_root(
+        api_root: String,
+        project: String,
+        secret_id: String,
+        refresh_every: Duration,
+        per_call_timeout: Duration,
+    ) -> Result<Self, String> {
         let tokens = Arc::new(MetadataTokenSource::new(per_call_timeout));
         let http = reqwest::Client::builder()
             .timeout(per_call_timeout)
             .build()
             .map_err(|e| e.to_string())?;
         let url = format!(
-            "https://secretmanager.googleapis.com/v1/projects/{}/secrets/{}/versions/latest:access",
-            project, secret_id,
+            "{}/v1/projects/{}/secrets/{}/versions/latest:access",
+            api_root, project, secret_id,
         );
         let initial = fetch(&http, &tokens, &url).await?;
         let cached = Arc::new(RwLock::new(initial));
@@ -145,5 +157,8 @@ impl ConfigSource for SecretManagerConfig {
     async fn bounds(&self) -> Result<(f64, f64), PortError> {
         let p = self.cached.read().await;
         Ok((p.bounds_min, p.bounds_max))
+    }
+    async fn canary_ratio_bp(&self) -> Result<u16, PortError> {
+        Ok(self.cached.read().await.canary_bp)
     }
 }
