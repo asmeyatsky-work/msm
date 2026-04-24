@@ -1,0 +1,16 @@
+# domain — pure business rules for the Scoring bounded context.
+# §2: imports nothing from infrastructure, presentation, or any SDK.
+# §3: immutable models; invariants in constructors; every port declared here.
+[package]
+name = "msm-scoring-domain"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true }
+async-trait = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

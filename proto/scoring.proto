@@ -1,0 +1,59 @@
+// Cross-service contract for the Scoring bounded context.
+// Architectural Rules §1: Protobuf for cross-service contracts.
+syntax = "proto3";
+
+package msm.scoring.v1;
+
+// ClickFeatures — the presentation-boundary input. Must be validated against
+// this schema before entering the domain (Architectural Rules §4).
+message ClickFeatures {
+  string click_id = 1;            // stable click identifier (not GCLID — PRD §2.1)
+  string correlation_id = 2;      // propagated through traces (§6)
+
+  // Click-level real-time (PRD §3.1)
+  string device = 10;
+  string geo = 11;
+  int32 hour_of_day = 12;         // 0..23
+  string query_intent = 13;
+  string ad_creative_id = 14;
+  double cerberus_score = 15;     // gPS Cerberus / reCAPTCHA, 0..1
+
+  // Historical rollups (PRD §3.1)
+  double rpc_7d = 20;
+  double rpc_14d = 21;
+  double rpc_30d = 22;
+
+  // Contextual (PRD §3.1)
+  bool is_payday_week = 30;
+  double auction_pressure = 31;
+
+  // Session/landing (PRD §3.1)
+  string landing_path = 40;
+  int32 visits_prev_30d = 41;
+}
+
+message ScoreRequest {
+  ClickFeatures features = 1;
+}
+
+// ScoreResponse — RPC prediction bounded by domain invariants. If the prediction
+// was rejected by a guardrail, `source` reflects the fallback path (PRD §5).
+message ScoreResponse {
+  string click_id = 1;
+  double predicted_rpc = 2;
+  PredictionSource source = 3;
+  string model_version = 4;
+  string correlation_id = 5;
+}
+
+enum PredictionSource {
+  PREDICTION_SOURCE_UNSPECIFIED = 0;
+  MODEL = 1;                  // Vertex AI endpoint
+  FALLBACK_TCPA = 2;          // bounds rejection → PRD §5
+  FALLBACK_DATA_LAYER = 3;    // circuit breaker open → PRD §5
+  KILL_SWITCH = 4;            // kill switch engaged → PRD §5
+}
+
+service ScoringService {
+  rpc Score(ScoreRequest) returns (ScoreResponse);
+}

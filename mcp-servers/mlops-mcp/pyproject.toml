@@ -1,0 +1,10 @@
+# mlops-mcp — one per bounded context (§3.5). Wraps TrainModel / DetectDrift use cases.
+[project]
+name = "msm-mlops-mcp"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=1.0",
+    "msm-ml",
+    "pydantic>=2.7",
+]

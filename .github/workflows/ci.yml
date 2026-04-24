@@ -1,0 +1,86 @@
+# CI — §2 mechanical enforcement + §5 coverage floor + §4 supply chain.
+# Rule not in CI = rule not real.
+name: ci
+on:
+  pull_request:
+  push: { branches: [main] }
+
+jobs:
+  rust-scoring-api:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: services/scoring-api } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: fmt + clippy
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets -- -D warnings
+      - name: test
+        run: cargo test --workspace --all-features
+      - name: coverage floor (§5 domain ≥95, overall ≥80)
+        run: |
+          cargo install cargo-llvm-cov --locked
+          cargo llvm-cov --workspace --fail-under-lines 80
+      - name: supply chain (§4 cargo-deny + cargo-audit)
+        run: |
+          cargo install cargo-deny cargo-audit --locked
+          cargo deny check
+          cargo audit
+
+  python-ml-pipeline:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: services/ml-pipeline } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: install
+        run: pip install -e ".[dev]"
+      - name: layer enforcement (§2 import-linter)
+        run: lint-imports
+      - name: type check + lint
+        run: |
+          ruff check src tests
+          mypy src
+      - name: tests + coverage (§5)
+        run: pytest
+      - name: supply chain (§4 pip-audit)
+        run: pip-audit
+
+  python-mcp-servers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: scoring-mcp schema roundtrip (§5)
+        working-directory: mcp-servers/scoring-mcp
+        run: |
+          pip install -e .
+          pip install pytest
+          pytest src
+
+  typescript-dashboard:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: dashboard } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - run: npm ci
+      - name: boundaries (§2)
+        run: npm run lint
+      - name: type check
+        run: npx tsc --noEmit
+      - name: supply chain (§4 npm audit)
+        run: npm audit --audit-level=high
+
+  sbom:
+    # §4: SBOM at build.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anchore/sbom-action@v0
+        with: { format: spdx-json, output-file: sbom.spdx.json }

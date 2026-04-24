@@ -1,0 +1,45 @@
+# ml-pipeline — Python 3.12+ (Architectural Rules §1).
+# Bounded context: ML Ops. Handles feature engineering, training (Vertex AI
+# Pipelines), model registration, and drift detection.
+[project]
+name = "msm-ml"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.7",          # §4: schema-based validation at boundaries
+    "xgboost>=2.0",           # PRD §3: XGBoost model
+    "scikit-learn>=1.5",
+    "shap>=0.46",             # PRD §3: SHAP explainability
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "google-cloud-aiplatform>=1.60",
+    "google-cloud-bigquery>=3.25",
+    "structlog>=24.1",
+    "opentelemetry-api>=1.25",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "import-linter>=2.0",     # §2: enforce layer boundaries
+    "pip-audit>=2.7",         # §4: supply chain
+    "mypy>=1.10",
+    "ruff>=0.5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+addopts = "--cov=msm_ml --cov-fail-under=85"  # §5 application floor
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.mypy]
+strict = true
+python_version = "3.12"

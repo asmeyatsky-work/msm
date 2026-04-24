@@ -1,0 +1,232 @@
+//! # Scoring Presentation (HTTP)
+//!
+//! Layer: presentation. Wires adapters into the `ScoreClick` use case.
+//! §4: validates all external input against a schema (serde + domain constructors).
+
+use std::sync::Arc;
+use std::time::Duration;
+use axum::{routing::post, Router, Json, http::StatusCode, extract::State};
+use serde::{Deserialize, Serialize};
+
+use msm_scoring_application::{ScoreClick, ScoreClickDeps, ExplainClick};
+use msm_scoring_domain::click::{ClickFeatures, ClickFeaturesInput};
+use msm_scoring_infrastructure::{
+    VertexEndpoint, VertexExplain, BigQueryDataLayer, SystemClock,
+    RuntimeConfig, SecretManagerConfig, PubSubAudit,
+};
+use msm_scoring_domain::ports::ConfigSource;
+
+#[derive(Clone)]
+struct AppState {
+    use_case: Arc<ScoreClick>,
+    explain: Arc<ExplainClick>,
+}
+
+#[derive(Deserialize)]
+struct ScoreRequest {
+    click_id: String,
+    correlation_id: String,
+    device: String,
+    geo: String,
+    hour_of_day: i32,
+    query_intent: String,
+    ad_creative_id: String,
+    cerberus_score: f64,
+    rpc_7d: f64,
+    rpc_14d: f64,
+    rpc_30d: f64,
+    is_payday_week: bool,
+    auction_pressure: f64,
+    landing_path: String,
+    visits_prev_30d: u32,
+}
+
+#[derive(Serialize)]
+struct ScoreResponse {
+    click_id: String,
+    predicted_rpc: f64,
+    source: String,
+    model_version: String,
+    correlation_id: String,
+}
+
+async fn score_handler(
+    State(state): State<AppState>,
+    Json(req): Json<ScoreRequest>,
+) -> Result<Json<ScoreResponse>, (StatusCode, String)> {
+    // §4: Reject-by-default via domain constructor invariants.
+    let features = ClickFeatures::try_new(ClickFeaturesInput {
+        click_id: req.click_id,
+        correlation_id: req.correlation_id,
+        device: req.device,
+        geo: req.geo,
+        hour_of_day: req.hour_of_day,
+        query_intent: req.query_intent,
+        ad_creative_id: req.ad_creative_id,
+        cerberus_score: req.cerberus_score,
+        rpc_7d: req.rpc_7d,
+        rpc_14d: req.rpc_14d,
+        rpc_30d: req.rpc_30d,
+        is_payday_week: req.is_payday_week,
+        auction_pressure: req.auction_pressure,
+        landing_path: req.landing_path,
+        visits_prev_30d: req.visits_prev_30d,
+    }).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let pred = state.use_case.execute(features).await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(ScoreResponse {
+        click_id: pred.click_id().as_str().into(),
+        predicted_rpc: pred.rpc().value(),
+        source: format!("{:?}", pred.source()),
+        model_version: pred.model_version().into(),
+        correlation_id: pred.correlation_id().as_str().into(),
+    }))
+}
+
+#[derive(Serialize)]
+struct ExplainResponse {
+    click_id: String,
+    base_value: f64,
+    contributions: Vec<(String, f64)>,
+}
+
+async fn explain_handler(
+    State(state): State<AppState>,
+    Json(req): Json<ScoreRequest>,
+) -> Result<Json<ExplainResponse>, (StatusCode, String)> {
+    let features = ClickFeatures::try_new(ClickFeaturesInput {
+        click_id: req.click_id.clone(),
+        correlation_id: req.correlation_id,
+        device: req.device, geo: req.geo, hour_of_day: req.hour_of_day,
+        query_intent: req.query_intent, ad_creative_id: req.ad_creative_id,
+        cerberus_score: req.cerberus_score,
+        rpc_7d: req.rpc_7d, rpc_14d: req.rpc_14d, rpc_30d: req.rpc_30d,
+        is_payday_week: req.is_payday_week, auction_pressure: req.auction_pressure,
+        landing_path: req.landing_path, visits_prev_30d: req.visits_prev_30d,
+    }).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let a = state.explain.execute(features).await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    Ok(Json(ExplainResponse {
+        click_id: req.click_id,
+        base_value: a.base_value,
+        contributions: a.contributions,
+    }))
+}
+
+async fn healthz() -> &'static str { "ok" }
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber_init();
+
+    // §4: never read secrets from env-default; a non-present endpoint URL means
+    // the service refuses to start.
+    let vertex_url = std::env::var("VERTEX_ENDPOINT_URL")
+        .map_err(|_| "VERTEX_ENDPOINT_URL must be provided via Secret Manager/Workload Identity")?;
+    let model_version = std::env::var("MODEL_VERSION").unwrap_or_else(|_| "unknown".into());
+    let bounds_min: f64 = std::env::var("RPC_MIN").ok().and_then(|v| v.parse().ok()).unwrap_or(0.01);
+    let bounds_max: f64 = std::env::var("RPC_MAX").ok().and_then(|v| v.parse().ok()).unwrap_or(500.0);
+    let kill: bool = std::env::var("KILL_SWITCH").ok().map(|v| v == "true").unwrap_or(false);
+
+    // Prefer Secret-Manager-backed config so the breaker-automation function
+    // can flip the kill switch by writing a new secret version (PRD §5,
+    // no redeploy). Fall back to env-backed RuntimeConfig for local dev.
+    let config: Arc<dyn ConfigSource> =
+        match (std::env::var("GCP_PROJECT").ok(), std::env::var("RUNTIME_CONFIG_SECRET").ok()) {
+            (Some(project), Some(secret_id)) => Arc::new(
+                SecretManagerConfig::new(
+                    project, secret_id,
+                    Duration::from_secs(15),
+                    Duration::from_millis(500),
+                ).await.map_err(|e| format!("runtime config init: {e}"))?,
+            ),
+            _ => Arc::new(RuntimeConfig::new(kill, bounds_min, bounds_max)),
+        };
+
+    let deps = ScoreClickDeps {
+        model: Arc::new(VertexEndpoint::new(vertex_url, model_version, Duration::from_millis(80))),
+        data_layer: Arc::new(BigQueryDataLayer::new(
+            std::env::var("GCP_PROJECT").map_err(|_| "GCP_PROJECT required")?,
+            std::env::var("BQ_DATASET").map_err(|_| "BQ_DATASET required")?,
+            std::env::var("BQ_LEDGER_TABLE").unwrap_or_else(|_| "sales_ledger".into()),
+            Duration::from_millis(200),
+        )),
+        clock: Arc::new(SystemClock),
+        config,
+        audit: Arc::new(PubSubAudit::new("scoring-audit".into())),
+        model_timeout: Duration::from_millis(80),       // PRD §2.2: <100ms budget
+        breaker_cool_off: Duration::from_secs(30),
+        anomaly_threshold: 0.03,                         // PRD §5: >3% null/zero
+        // PRD §6 Hero feature — enable when both endpoint + policy are set.
+        clv: std::env::var("CLV_ENDPOINT_URL").ok().map(|url| {
+            let arc: Arc<dyn msm_scoring_domain::ports::ClvEndpoint> =
+                Arc::new(msm_scoring_infrastructure::VertexClvEndpoint::new(
+                    url, Duration::from_millis(80),
+                ));
+            arc
+        }),
+        clv_premium: match (
+            std::env::var("CLV_ALPHA").ok().and_then(|v| v.parse().ok()),
+            std::env::var("CLV_REFERENCE").ok().and_then(|v| v.parse().ok()),
+            std::env::var("CLV_CAP").ok().and_then(|v| v.parse().ok()),
+        ) {
+            (Some(a), Some(r), Some(c)) =>
+                msm_scoring_domain::ClvPremium::try_new(a, r, c).ok(),
+            _ => None,
+        },
+        clv_timeout: Duration::from_millis(80),
+    };
+    let use_case = Arc::new(ScoreClick::new(deps));
+
+    let explain_url = std::env::var("VERTEX_EXPLAIN_URL")
+        .map_err(|_| "VERTEX_EXPLAIN_URL must be provided")?;
+    let explain = Arc::new(ExplainClick::new(
+        Arc::new(VertexExplain::new(explain_url, Duration::from_millis(1500))),
+        Duration::from_millis(1500), // explain is slow; off hot path
+    ));
+
+    let app = Router::new()
+        .route("/healthz", axum::routing::get(healthz))
+        .route("/v1/score", post(score_handler))
+        .route("/v1/explain", post(explain_handler))
+        .with_state(AppState { use_case, explain });
+
+    let addr = std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".into());
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    tracing::info!(%addr, "scoring-api listening");
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+fn tracing_subscriber_init() {
+    // Structured JSON logs, correlation id in span fields (§6).
+    // Minimal init to avoid pulling in a heavy formatter in this scaffold.
+    use tracing::Level;
+    let _ = tracing::subscriber::set_global_default(
+        tracing_subscriber_fallback::FallbackSubscriber::new(Level::INFO),
+    );
+}
+
+mod tracing_subscriber_fallback {
+    use tracing::{Event, Level, Metadata};
+    use tracing::span::{Attributes, Id, Record};
+    use tracing::subscriber::Subscriber;
+
+    pub struct FallbackSubscriber { level: Level }
+    impl FallbackSubscriber { pub fn new(level: Level) -> Self { Self { level } } }
+
+    impl Subscriber for FallbackSubscriber {
+        fn enabled(&self, m: &Metadata<'_>) -> bool { *m.level() <= self.level }
+        fn new_span(&self, _: &Attributes<'_>) -> Id { Id::from_u64(1) }
+        fn record(&self, _: &Id, _: &Record<'_>) {}
+        fn record_follows_from(&self, _: &Id, _: &Id) {}
+        fn event(&self, event: &Event<'_>) {
+            eprintln!("{} {}", event.metadata().level(), event.metadata().target());
+        }
+        fn enter(&self, _: &Id) {}
+        fn exit(&self, _: &Id) {}
+    }
+}

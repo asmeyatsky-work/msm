@@ -1,0 +1,17 @@
+[importlinter]
+root_package = msm_breaker
+
+[importlinter:contract:layers]
+name = Layered architecture
+type = layers
+layers =
+    msm_breaker.presentation
+    msm_breaker.infrastructure
+    msm_breaker.application
+    msm_breaker.domain
+
+[importlinter:contract:domain-purity]
+name = Domain imports nothing heavy
+type = forbidden
+source_modules = msm_breaker.domain
+forbidden_modules = google, pydantic, functions_framework

@@ -1,0 +1,12 @@
+# activation — SSGTM + gPS Phoebe bridge (ADR 0001 selected Option B).
+# Subscribes to a Pub/Sub topic of predictions and pushes to SA360 via SSGTM.
+[project]
+name = "msm-activation"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.7",
+    "httpx>=0.27",
+    "google-cloud-pubsub>=2.21",
+    "structlog>=24.1",
+]

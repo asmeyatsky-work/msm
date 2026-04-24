@@ -1,0 +1,40 @@
+# scoring-api — hot-path RPC scoring (Architectural Rules §1, Rust for p99 < 50ms).
+# Workspace layout enforces layer direction (§2) mechanically via crate deps:
+#
+#   presentation ──> application ──> domain
+#   infrastructure ──> application ──> domain
+#
+# `domain` depends on nothing but std + minimal value-object helpers.
+# `application` depends only on `domain`.
+# `infrastructure` implements ports declared in `domain`; never imported by domain.
+# `presentation` wires HTTP/gRPC to application use cases.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/domain",
+    "crates/application",
+    "crates/infrastructure",
+    "crates/presentation",
+]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.78"
+license = "Proprietary"
+
+[workspace.dependencies]
+# Pinned for reproducibility; lockfile committed per §4.
+thiserror = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-opentelemetry = "0.25"
+opentelemetry = "0.24"
+async-trait = "0.1"
+axum = "0.7"
+tower = "0.5"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+prost = "0.13"
+# domain crate depends on nothing above except thiserror + serde

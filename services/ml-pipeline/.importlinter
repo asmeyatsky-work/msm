@@ -1,0 +1,28 @@
+; §2: layer direction enforced mechanically (§7.10: Rules declared but not
+; mechanically enforced = anti-pattern).
+[importlinter]
+root_package = msm_ml
+
+[importlinter:contract:layers]
+name = Layered architecture
+type = layers
+layers =
+    msm_ml.presentation
+    msm_ml.infrastructure
+    msm_ml.application
+    msm_ml.domain
+
+[importlinter:contract:domain-purity]
+name = Domain imports nothing heavy
+type = forbidden
+source_modules =
+    msm_ml.domain
+forbidden_modules =
+    google
+    xgboost
+    pandas
+    numpy
+    pydantic
+    msm_ml.infrastructure
+    msm_ml.application
+    msm_ml.presentation

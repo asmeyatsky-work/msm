@@ -1,0 +1,19 @@
+# §4: signed commits on protected branches.
+name: signed-commits
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: verify signatures on PR commits
+        run: |
+          set -eo pipefail
+          git log --format='%H %G?' origin/main..HEAD | while read sha flag; do
+            if [ "$flag" != "G" ] && [ "$flag" != "U" ]; then
+              echo "::error::unsigned commit $sha (§4)"; exit 1
+            fi
+          done

@@ -1,0 +1,20 @@
+# breaker-automation — Cloud Function. PRD §5: automated circuit breaker.
+# On rpc-anomaly Pub/Sub event, flip the kill switch by writing a new
+# Secret Manager version; scoring-api hot-reloads from Secret Manager.
+[project]
+name = "msm-breaker"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.7",
+    "functions-framework>=3.8",
+    "google-cloud-secret-manager>=2.20",
+    "structlog>=24.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=5", "import-linter>=2.0"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=msm_breaker --cov-fail-under=85"
+testpaths = ["tests"]

@@ -1,0 +1,23 @@
+[importlinter]
+root_package = msm_reconciliation
+
+[importlinter:contract:layers]
+name = Layered architecture
+type = layers
+layers =
+    msm_reconciliation.presentation
+    msm_reconciliation.infrastructure
+    msm_reconciliation.application
+    msm_reconciliation.domain
+
+[importlinter:contract:domain-purity]
+name = Domain imports nothing heavy
+type = forbidden
+source_modules = msm_reconciliation.domain
+forbidden_modules =
+    google
+    fastapi
+    pydantic
+    msm_reconciliation.infrastructure
+    msm_reconciliation.application
+    msm_reconciliation.presentation

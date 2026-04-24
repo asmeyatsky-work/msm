@@ -1,0 +1,22 @@
+# infrastructure — adapters. §2: implements domain ports, never imported by domain.
+# §3.1: no business logic here.
+[package]
+name = "msm-scoring-infrastructure"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+msm-scoring-domain = { path = "../domain" }
+msm-scoring-application = { path = "../application" }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+wiremock = "0.6"
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
