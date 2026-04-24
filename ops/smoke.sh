@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Post-deploy smoke: hit /healthz and /v1/score once. Fails loud on any
+# Post-deploy smoke: hit /health and /v1/score once. Fails loud on any
 # non-2xx — the CD job uses this to halt promotion to prod.
 set -euo pipefail
 
 URL="${1:?scoring-api URL required}"
 
-echo "smoke: healthz"
-curl -fsS "${URL}/healthz" | grep -q ok
+echo "smoke: health"
+curl -fsS "${URL}/health" | grep -q ok
 
 echo "smoke: score"
 curl -fsS -X POST "${URL}/v1/score" \

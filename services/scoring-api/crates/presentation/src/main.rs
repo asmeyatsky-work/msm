@@ -286,7 +286,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app_state = AppState { use_case, explain };
     let api = Router::new()
-        .route("/healthz", get(healthz))
+        .route("/health", get(healthz))
         .route("/v1/score", post(score_handler))
         .route("/v1/explain", post(explain_handler))
         .with_state(app_state)

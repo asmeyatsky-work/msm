@@ -12,7 +12,7 @@ docker compose up -d --build
 # can't run). Up to 60s for cold-start.
 ready=0
 for _ in $(seq 1 120); do
-  if curl -fsS http://localhost:8080/healthz >/dev/null 2>&1; then ready=1; break; fi
+  if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then ready=1; break; fi
   sleep 0.5
 done
 if [ "$ready" -ne 1 ]; then
@@ -51,7 +51,7 @@ echo "$EXP" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d["bas
 # Reconciliation service: poll until FastAPI is up, then fetch a wide window.
 ready=0
 for _ in $(seq 1 120); do
-  if curl -fsS http://localhost:8081/healthz >/dev/null 2>&1; then ready=1; break; fi
+  if curl -fsS http://localhost:8081/health >/dev/null 2>&1; then ready=1; break; fi
   sleep 0.5
 done
 if [ "$ready" -ne 1 ]; then

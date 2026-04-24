@@ -199,6 +199,22 @@ resource "google_cloud_scheduler_job" "bounds_calibration" {
   }
 }
 
+resource "google_cloud_run_v2_service_iam_member" "scoring_api_public" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.scoring_api.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"  # staging only — tighten for prod once an ingress LB is in place
+}
+
+resource "google_cloud_run_v2_service_iam_member" "reconciliation_public" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.reconciliation.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
 output "scoring_api_url" {
   description = "Public URL of the deployed scoring-api service."
   value       = google_cloud_run_v2_service.scoring_api.uri
