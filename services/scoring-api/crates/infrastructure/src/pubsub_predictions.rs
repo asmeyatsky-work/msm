@@ -23,10 +23,15 @@ impl PubSubPredictions {
     }
 
     pub fn with_api_root(
-        api_root: String, project: String, topic: String, per_call_timeout: Duration,
+        api_root: String,
+        project: String,
+        topic: String,
+        per_call_timeout: Duration,
     ) -> Self {
         let http = reqwest::Client::builder()
-            .timeout(per_call_timeout).build().expect("client");
+            .timeout(per_call_timeout)
+            .build()
+            .expect("client");
         Self {
             http,
             tokens: Arc::new(MetadataTokenSource::new(per_call_timeout)),

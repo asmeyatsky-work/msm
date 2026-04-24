@@ -29,20 +29,32 @@ impl BigQueryDataLayer {
         Self::with_api_root(
             std::env::var("BQ_API_ROOT")
                 .unwrap_or_else(|_| "https://bigquery.googleapis.com".into()),
-            project, dataset, table, per_call_timeout,
+            project,
+            dataset,
+            table,
+            per_call_timeout,
         )
     }
 
     pub fn with_api_root(
-        api_root: String, project: String, dataset: String, table: String,
+        api_root: String,
+        project: String,
+        dataset: String,
+        table: String,
         per_call_timeout: Duration,
     ) -> Self {
         let http = reqwest::Client::builder()
-            .timeout(per_call_timeout).build().expect("client");
+            .timeout(per_call_timeout)
+            .build()
+            .expect("client");
         Self {
-            http, api_root,
+            http,
+            api_root,
             tokens: Arc::new(MetadataTokenSource::new(per_call_timeout)),
-            project, dataset, table, timeout: per_call_timeout,
+            project,
+            dataset,
+            table,
+            timeout: per_call_timeout,
         }
     }
 }

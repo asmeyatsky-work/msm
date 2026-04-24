@@ -27,9 +27,15 @@ struct SecretPayload {
     #[serde(default = "default_canary_bp")]
     canary_bp: u16,
 }
-fn default_min() -> f64 { 0.01 }
-fn default_max() -> f64 { 500.0 }
-fn default_canary_bp() -> u16 { 10_000 }
+fn default_min() -> f64 {
+    0.01
+}
+fn default_max() -> f64 {
+    500.0
+}
+fn default_canary_bp() -> u16 {
+    10_000
+}
 
 pub struct SecretManagerConfig {
     cached: Arc<RwLock<SecretPayload>>,
@@ -46,7 +52,14 @@ impl SecretManagerConfig {
     ) -> Result<Self, String> {
         let api_root = std::env::var("SECRETMANAGER_API_ROOT")
             .unwrap_or_else(|_| "https://secretmanager.googleapis.com".into());
-        Self::with_api_root(api_root, project, secret_id, refresh_every, per_call_timeout).await
+        Self::with_api_root(
+            api_root,
+            project,
+            secret_id,
+            refresh_every,
+            per_call_timeout,
+        )
+        .await
     }
 
     pub async fn with_api_root(
