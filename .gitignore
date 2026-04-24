@@ -13,3 +13,4 @@ target/
 *.tfstate.*
 .DS_Store
 contract-tests/.out/
+.claude/
