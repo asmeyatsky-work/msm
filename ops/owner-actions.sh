@@ -151,19 +151,32 @@ cmd_deploy_model() {
   ensure_adc "$PROJECT_STAGING"
   step "3/?  retrain + register rpc-estimator (with explanationSpec)"
 
-  if ! python3 -c 'import xgboost, google.cloud.aiplatform' 2>/dev/null; then
-    bold "    installing python deps (xgboost, google-cloud-{bigquery,aiplatform,storage,secret-manager}, pandas)"
-    python3 -m pip install --user --quiet \
-      xgboost pandas db-dtypes \
-      google-cloud-bigquery google-cloud-aiplatform google-cloud-storage google-cloud-secret-manager
-  fi
-
   if [[ "$(uname -s)" == "Darwin" ]] && ! brew list libomp >/dev/null 2>&1; then
     bold "    macOS: installing libomp (xgboost runtime dep)"
     brew install libomp
   fi
 
+  # PEP 668: Homebrew Python is externally-managed. Use a project-local venv
+  # so we don't have to --break-system-packages or pollute the user site.
+  local venv="${ROOT}/.venv-deploy-model"
+  if [[ ! -d "$venv" ]]; then
+    bold "    creating venv at $venv"
+    python3 -m venv "$venv"
+  fi
+  # shellcheck disable=SC1091
+  source "$venv/bin/activate"
+
+  if ! python3 -c 'import xgboost, google.cloud.aiplatform' 2>/dev/null; then
+    bold "    installing python deps into venv"
+    python3 -m pip install --quiet --upgrade pip
+    python3 -m pip install --quiet \
+      xgboost pandas db-dtypes \
+      google-cloud-bigquery google-cloud-aiplatform \
+      google-cloud-storage google-cloud-secret-manager
+  fi
+
   python3 "${ROOT}/ops/deploy_real_model.py"
+  deactivate
   green "✓ rpc-estimator registered + endpoint updated"
 }
 
