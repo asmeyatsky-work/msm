@@ -170,7 +170,7 @@ cmd_deploy_model() {
     bold "    installing python deps into venv"
     python3 -m pip install --quiet --upgrade pip
     python3 -m pip install --quiet \
-      xgboost pandas db-dtypes \
+      xgboost scikit-learn pandas db-dtypes \
       google-cloud-bigquery google-cloud-aiplatform \
       google-cloud-storage google-cloud-secret-manager
   fi
