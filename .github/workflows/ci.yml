@@ -21,10 +21,14 @@ jobs:
           cargo clippy --workspace --all-targets -- -D warnings
       - name: test
         run: cargo test --workspace --all-features
-      - name: coverage report (§5 floor to be re-enabled once adapters are covered)
+      - name: coverage (§5 — fail under 80%)
+        # presentation/main.rs is the binary wiring layer; exercised through
+        # integration tests that run against a deployed binary, not unit tests.
         run: |
           cargo install cargo-llvm-cov --locked
-          cargo llvm-cov --workspace --summary-only
+          cargo llvm-cov --workspace --summary-only \
+            --ignore-filename-regex 'presentation/src/main\.rs' \
+            --fail-under-lines 80
       - name: supply chain (§4 cargo-deny + cargo-audit)
         run: |
           cargo install cargo-deny cargo-audit --locked

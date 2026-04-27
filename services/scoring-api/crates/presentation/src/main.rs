@@ -178,6 +178,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // the service refuses to start.
     let vertex_url = std::env::var("VERTEX_ENDPOINT_URL")
         .map_err(|_| "VERTEX_ENDPOINT_URL must be provided via Secret Manager/Workload Identity")?;
+    // Derived now while vertex_url is still owned in this scope; see ADR 0002.
+    let derived_explain_url = if vertex_url.ends_with(":predict") {
+        format!("{}:explain", vertex_url.trim_end_matches(":predict"))
+    } else {
+        vertex_url.replace("/predict", "/explain")
+    };
     let model_version = std::env::var("MODEL_VERSION").unwrap_or_else(|_| "unknown".into());
     let bounds_min: f64 = std::env::var("RPC_MIN")
         .ok()
@@ -250,6 +256,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(0.03), // PRD §5: >3% null/zero default
+        anomaly_window: Duration::from_secs(
+            std::env::var("ANOMALY_WINDOW_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(300),
+        ),
+        anomaly_min_samples: std::env::var("ANOMALY_MIN_SAMPLES")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(50),
         // PRD §6 Hero feature — enable when both endpoint + policy are set.
         clv: std::env::var("CLV_ENDPOINT_URL").ok().map(|url| {
             let arc: Arc<dyn msm_scoring_domain::ports::ClvEndpoint> = Arc::new(
@@ -287,8 +303,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let use_case = Arc::new(ScoreClick::new(deps));
 
-    let explain_url =
-        std::env::var("VERTEX_EXPLAIN_URL").map_err(|_| "VERTEX_EXPLAIN_URL must be provided")?;
+    // Single secret controls both :predict and :explain (see ADR 0002).
+    // VERTEX_EXPLAIN_URL override still wins if explicitly set.
+    let explain_url = std::env::var("VERTEX_EXPLAIN_URL").unwrap_or(derived_explain_url);
     let explain = Arc::new(ExplainClick::new(
         Arc::new(VertexExplain::new(explain_url, Duration::from_millis(1500))),
         Duration::from_millis(1500), // explain is slow; off hot path

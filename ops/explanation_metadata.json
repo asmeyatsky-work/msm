@@ -1,0 +1,24 @@
+{
+  "inputs": {
+    "features": {
+      "input_tensor_name": "input",
+      "encoding": "IDENTITY",
+      "modality": "numeric",
+      "index_feature_mapping": [
+        "hour_of_day",
+        "cerberus_score",
+        "rpc_7d",
+        "rpc_14d",
+        "rpc_30d",
+        "is_payday_week",
+        "auction_pressure",
+        "visits_prev_30d"
+      ]
+    }
+  },
+  "outputs": {
+    "rpc": {
+      "output_tensor_name": "output"
+    }
+  }
+}

@@ -73,31 +73,45 @@ impl CircuitBreakerState {
 }
 
 /// Null/zero rate window. PRD §5: ">3% triggers the breaker".
+///
+/// Sliding time window: only samples within `window_ms` of `now_ms` count
+/// toward the ratio. A `min_samples` floor prevents one zero in five from
+/// tripping the breaker at low traffic. Once the window ages out the offending
+/// samples, `breached()` recovers — the cumulative-counter prior version
+/// stayed breached forever after the first trip.
 #[derive(Debug, Clone)]
 pub struct AnomalyWindow {
-    total: u64,
-    null_or_zero: u64,
     threshold: f64,
+    window_ms: u64,
+    min_samples: u64,
+    samples: std::collections::VecDeque<(u64, bool)>,
 }
 
 impl AnomalyWindow {
-    pub fn new(threshold: f64) -> Self {
+    pub fn new(threshold: f64, window_ms: u64, min_samples: u64) -> Self {
         Self {
-            total: 0,
-            null_or_zero: 0,
             threshold,
+            window_ms,
+            min_samples,
+            samples: std::collections::VecDeque::new(),
         }
     }
-    #[must_use]
-    pub fn record(mut self, rpc: Rpc) -> Self {
-        self.total += 1;
-        if rpc.value() == 0.0 {
-            self.null_or_zero += 1;
+
+    pub fn record(&mut self, rpc: Rpc, now_ms: u64) {
+        let cutoff = now_ms.saturating_sub(self.window_ms);
+        while matches!(self.samples.front(), Some((t, _)) if *t < cutoff) {
+            self.samples.pop_front();
         }
-        self
+        self.samples.push_back((now_ms, rpc.value() == 0.0));
     }
+
     pub fn breached(&self) -> bool {
-        self.total > 0 && (self.null_or_zero as f64 / self.total as f64) > self.threshold
+        let n = self.samples.len() as u64;
+        if n < self.min_samples {
+            return false;
+        }
+        let zeros = self.samples.iter().filter(|(_, z)| *z).count() as f64;
+        zeros / n as f64 > self.threshold
     }
 }
 
@@ -129,9 +143,40 @@ mod tests {
 
     #[test]
     fn anomaly_window_breach_at_3_percent() {
-        let w = AnomalyWindow::new(0.03);
-        let w = (0..97).fold(w, |w, _| w.record(Rpc::try_new(1.0).unwrap()));
-        let w = (0..4).fold(w, |w, _| w.record(Rpc::try_new(0.0).unwrap()));
+        let mut w = AnomalyWindow::new(0.03, 60_000, 20);
+        for _ in 0..97 {
+            w.record(Rpc::try_new(1.0).unwrap(), 1_000);
+        }
+        for _ in 0..4 {
+            w.record(Rpc::try_new(0.0).unwrap(), 1_000);
+        }
         assert!(w.breached());
+    }
+
+    #[test]
+    fn anomaly_window_min_samples_floor() {
+        let mut w = AnomalyWindow::new(0.03, 60_000, 20);
+        for _ in 0..3 {
+            w.record(Rpc::try_new(0.0).unwrap(), 1_000);
+        }
+        assert!(!w.breached(), "below min_samples must not trip");
+    }
+
+    #[test]
+    fn anomaly_window_recovers_after_window_ages_out() {
+        let mut w = AnomalyWindow::new(0.03, 60_000, 20);
+        // Fill the window with zeros at t=0 — clearly breached.
+        for _ in 0..50 {
+            w.record(Rpc::try_new(0.0).unwrap(), 0);
+        }
+        assert!(w.breached());
+        // Push enough non-zeros far enough in the future that the zeros age out.
+        for _ in 0..50 {
+            w.record(Rpc::try_new(1.0).unwrap(), 120_000);
+        }
+        assert!(
+            !w.breached(),
+            "sliding window must drop aged samples and recover"
+        );
     }
 }

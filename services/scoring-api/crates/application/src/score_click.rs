@@ -35,6 +35,11 @@ pub struct ScoreClickDeps {
     pub breaker_cool_off: Duration,
     /// Anomaly threshold (PRD §5: >3%).
     pub anomaly_threshold: f64,
+    /// Sliding-window length for anomaly tracking.
+    pub anomaly_window: Duration,
+    /// Minimum samples in-window before `breached()` can trip; prevents
+    /// low-traffic spikes from flipping the breaker.
+    pub anomaly_min_samples: u64,
     /// PRD §6 optional "Hero" CLV adjustment. When both are Some, the CLV
     /// endpoint is called concurrently with the RPC model; failures degrade
     /// gracefully to the unadjusted prediction.
@@ -56,7 +61,11 @@ pub struct ScoreClick {
 
 impl ScoreClick {
     pub fn new(deps: ScoreClickDeps) -> Self {
-        let anomaly = AnomalyWindow::new(deps.anomaly_threshold);
+        let anomaly = AnomalyWindow::new(
+            deps.anomaly_threshold,
+            deps.anomaly_window.as_millis() as u64,
+            deps.anomaly_min_samples,
+        );
         Self {
             deps,
             breaker: Arc::new(RwLock::new(CircuitBreakerState::Closed)),
@@ -201,8 +210,7 @@ impl ScoreClick {
         // Anomaly window sees every realized model call.
         let breached = {
             let mut w = self.anomaly.write().await;
-            *w = std::mem::replace(&mut *w, AnomalyWindow::new(self.deps.anomaly_threshold))
-                .record(rpc);
+            w.record(rpc, now);
             w.breached()
         };
         if breached {
@@ -428,6 +436,8 @@ mod tests {
             model_timeout: Duration::from_millis(50),
             breaker_cool_off: Duration::from_secs(30),
             anomaly_threshold: 0.03,
+            anomaly_window: Duration::from_secs(60),
+            anomaly_min_samples: 1, // unit tests record one prediction at a time
             clv: None,
             clv_premium: None,
             clv_timeout: Duration::from_millis(100),

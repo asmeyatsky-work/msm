@@ -95,6 +95,8 @@ fn build_uc(vertex_url: String) -> ScoreClick {
         model_timeout: Duration::from_millis(200),
         breaker_cool_off: Duration::from_secs(30),
         anomaly_threshold: 0.03,
+        anomaly_window: Duration::from_secs(60),
+        anomaly_min_samples: 1,
         clv: None,
         clv_premium: None,
         clv_timeout: Duration::from_millis(200),

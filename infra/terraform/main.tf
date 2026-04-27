@@ -187,6 +187,36 @@ resource "google_secret_manager_secret_iam_member" "scoring_api_vertex_url" {
   member    = "serviceAccount:${google_service_account.scoring_api.email}"
 }
 
+# --- Runtime IAM for scoring-api SA (previously granted out-of-band) ---
+# scoring-api calls Vertex AI online prediction (§2.2) and reads BigQuery on
+# the breaker fallback path (§5). These were granted ad-hoc during first
+# deploy; codifying so a fresh-project bootstrap reproduces the live state.
+resource "google_project_iam_member" "scoring_api_aiplatform_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.scoring_api.email}"
+}
+
+resource "google_project_iam_member" "scoring_api_bq_job_user" {
+  project = var.project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.scoring_api.email}"
+}
+
+resource "google_bigquery_dataset_iam_member" "scoring_api_bq_data_viewer" {
+  dataset_id = google_bigquery_dataset.rpc.dataset_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.scoring_api.email}"
+}
+
+# Vertex AI Service Agent reads model artifacts from this bucket during
+# model upload / deployment. Granted out-of-band on first deploy.
+resource "google_storage_bucket_iam_member" "vertex_sa_artifacts_reader" {
+  bucket = google_storage_bucket.artifacts.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:service-${data.google_project.this.number}@gcp-sa-aiplatform.iam.gserviceaccount.com"
+}
+
 # --- Runtime config (PRD §5 Kill Switch without redeploy) ---
 resource "google_secret_manager_secret" "runtime_config" {
   secret_id = "rpc-runtime-config-${var.env}"

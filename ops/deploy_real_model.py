@@ -80,12 +80,38 @@ def main() -> None:
         print(f"   artifact_uri = {artifact_uri}")
 
     # ---------- 4. Register model in Vertex AI ----------
-    step("4/6 register model in Vertex AI")
+    # ADR 0002: explanationSpec is required so /v1/explain returns real
+    # attributions. Sampled-shapley with paths=10 is the standard tradeoff.
+    step("4/6 register model in Vertex AI (with explanationSpec)")
     aiplatform.init(project=PROJECT, location=REGION, staging_bucket=f"gs://{BUCKET}")
+    import json as _json
+    metadata_path = Path(__file__).parent / "explanation_metadata.json"
+    explain_meta = _json.loads(metadata_path.read_text())
+    explanation_spec = aiplatform.explain.ExplanationSpec(
+        parameters=aiplatform.explain.ExplanationParameters(
+            sampled_shapley_attribution=aiplatform.explain.SampledShapleyAttribution(path_count=10),
+        ),
+        metadata=aiplatform.explain.ExplanationMetadata(
+            inputs={
+                k: aiplatform.explain.ExplanationMetadata.InputMetadata(
+                    encoding=v.get("encoding", "IDENTITY"),
+                    modality=v.get("modality"),
+                    index_feature_mapping=v.get("index_feature_mapping"),
+                )
+                for k, v in explain_meta["inputs"].items()
+            },
+            outputs={
+                k: aiplatform.explain.ExplanationMetadata.OutputMetadata()
+                for k in explain_meta["outputs"]
+            },
+        ),
+    )
     registered = aiplatform.Model.upload(
         display_name=MODEL_ID,
         artifact_uri=artifact_uri,
         serving_container_image_uri=SERVING_IMAGE,
+        explanation_parameters=explanation_spec.parameters,
+        explanation_metadata=explanation_spec.metadata,
     )
     registered.wait()
     print(f"   model resource = {registered.resource_name}")
