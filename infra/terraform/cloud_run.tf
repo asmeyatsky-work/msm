@@ -28,15 +28,16 @@ locals {
 resource "google_cloud_run_v2_service" "scoring_api" {
   name     = "scoring-api-${var.env}"
   location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"  # tighten to INTERNAL_LOAD_BALANCER once an LB is provisioned
+  ingress  = "INGRESS_TRAFFIC_ALL" # tighten to INTERNAL_LOAD_BALANCER once an LB is provisioned
 
   template {
     service_account = google_service_account.scoring_api.email
     # Hot path: preserve CPU to avoid cold-start p99 hits.
     scaling {
-      min_instance_count = 1
-      max_instance_count = 50
+      min_instance_count = var.scoring_api_min_instances
+      max_instance_count = var.scoring_api_max_instances
     }
+    max_instance_request_concurrency = var.scoring_api_concurrency
     containers {
       image = var.image_scoring_api
       ports {
@@ -86,16 +87,26 @@ resource "google_cloud_run_v2_service" "scoring_api" {
         name  = "BQ_LEDGER_TABLE"
         value = "sales_ledger"
       }
-      # Staging tolerates more null/zero outputs because test traffic is
-      # skewed and the synthetic model extrapolates negatively on
-      # out-of-distribution inputs. Prod should use 0.03.
+      # PRD §5 guardrail knobs — values come from envs/<env>.tfvars.
       env {
         name  = "ANOMALY_THRESHOLD"
-        value = "0.50"
+        value = tostring(var.anomaly_threshold)
+      }
+      env {
+        name  = "ANOMALY_WINDOW_SECS"
+        value = tostring(var.anomaly_window_secs)
+      }
+      env {
+        name  = "ANOMALY_MIN_SAMPLES"
+        value = tostring(var.anomaly_min_samples)
       }
       env {
         name  = "MODEL_TIMEOUT_MS"
-        value = "500"
+        value = tostring(var.model_timeout_ms)
+      }
+      env {
+        name  = "BQ_TIMEOUT_MS"
+        value = tostring(var.bq_timeout_ms)
       }
     }
   }

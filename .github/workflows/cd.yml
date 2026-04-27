@@ -122,7 +122,7 @@ jobs:
           # TF_VAR_region is set in job env. Bootstrap created the bucket
           # with a region prefix; access requires a quota project.
           terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
-          terraform apply -auto-approve -lock-timeout=5m
+          terraform apply -auto-approve -lock-timeout=5m -var-file=envs/staging.tfvars
 
       - name: post-deploy smoke
         working-directory: infra/terraform
@@ -160,4 +160,4 @@ jobs:
           TF_VAR_image_mock_vertex:    ${{ needs.build-push.outputs.image_mock_vertex }}
         run: |
           terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET_PROD }}"
-          terraform apply -auto-approve -lock-timeout=5m
+          terraform apply -auto-approve -lock-timeout=5m -var-file=envs/prod.tfvars

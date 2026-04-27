@@ -135,7 +135,7 @@ resource "google_pubsub_subscription" "predictions_to_bq" {
   bigquery_config {
     table               = "${var.project_id}.${google_bigquery_dataset.rpc.dataset_id}.${google_bigquery_table.predictions.table_id}"
     use_topic_schema    = false
-    write_metadata      = true   # required so publish_time / message_id columns get filled
+    write_metadata      = true # required so publish_time / message_id columns get filled
     drop_unknown_fields = true
   }
 }
