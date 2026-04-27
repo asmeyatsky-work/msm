@@ -51,12 +51,28 @@ confirm() {
 
 ensure_adc() {
   local proj="$1"
-  if ! gcloud auth application-default print-access-token \
-       --quota-project="$proj" >/dev/null 2>&1; then
-    red "ADC not set or quota project mismatch. Run:"
+  local adc_file="${HOME}/.config/gcloud/application_default_credentials.json"
+
+  if [[ ! -f "$adc_file" ]]; then
+    red "ADC not set. Run:"
     red "   gcloud auth application-default login"
     red "   gcloud auth application-default set-quota-project $proj"
     exit 1
+  fi
+  if ! gcloud auth application-default print-access-token >/dev/null 2>&1; then
+    red "ADC token cannot be minted. Try re-authing:"
+    red "   gcloud auth application-default login"
+    exit 1
+  fi
+  # Quota project is best-effort — print-access-token doesn't honour
+  # --quota-project on every gcloud version. Warn but don't block.
+  if command -v jq >/dev/null 2>&1; then
+    local current
+    current=$(jq -r '.quota_project_id // empty' "$adc_file" 2>/dev/null || true)
+    if [[ -n "$current" && "$current" != "$proj" ]]; then
+      red "ADC quota project is '$current', expected '$proj'. Fixing:"
+      gcloud auth application-default set-quota-project "$proj"
+    fi
   fi
 }
 
