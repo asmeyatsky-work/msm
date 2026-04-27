@@ -128,6 +128,21 @@ resource "google_project_iam_member" "ci_sa_admin" {
   member  = "serviceAccount:${google_service_account.ci.email}"
 }
 
+# Phase 3.4 monitoring resources: log-based metrics, alert policies, SLOs,
+# custom services. Without these the CI SA can't even READ existing alerts
+# during plan, so terraform fails before apply.
+resource "google_project_iam_member" "ci_logging_admin" {
+  project = var.project_id
+  role    = "roles/logging.configWriter"
+  member  = "serviceAccount:${google_service_account.ci.email}"
+}
+
+resource "google_project_iam_member" "ci_monitoring_admin" {
+  project = var.project_id
+  role    = "roles/monitoring.editor"
+  member  = "serviceAccount:${google_service_account.ci.email}"
+}
+
 output "wif_provider_resource" {
   description = "Value for the GCP_WIF_PROVIDER GitHub Actions secret."
   value       = "projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.gh.workload_identity_pool_id}/providers/${google_iam_workload_identity_pool_provider.github.workload_identity_pool_provider_id}"
