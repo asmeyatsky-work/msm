@@ -53,7 +53,9 @@ jobs:
       - name: tests + coverage (§5)
         run: pytest
       - name: supply chain (§4 pip-audit)
-        run: pip-audit
+        # CVE-2026-3219 is against pip itself with no fix version; tracked
+        # upstream — ignore until a patched pip lands.
+        run: pip-audit --ignore-vuln CVE-2026-3219
 
   python-mcp-servers:
     runs-on: ubuntu-latest

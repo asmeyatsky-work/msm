@@ -31,6 +31,10 @@ class RowOut(BaseModel):
     window_ends_at_ms: int = Field(ge=0)
 
 
+# /healthz is intercepted by Cloud Run's GFE (returns 404 before reaching the
+# container); /health is the path that actually hits FastAPI. Keep /healthz
+# aliased so anything still probing the old path keeps working.
+@app.get("/health")
 @app.get("/healthz")
 def healthz() -> dict:
     return {"status": "ok"}
