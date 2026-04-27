@@ -145,6 +145,79 @@ resource "google_pubsub_topic" "audit" {
   # §4: append-only; separate IAM attached out-of-band to `rpc-audit-writer` SA.
 }
 
+# --- Click ingestion stream (Phase 2.2) ---
+# Client publishes one message per click to rpc-clicks-${env}; a BigQuery
+# subscription lands the JSON in cm360_clicks_raw, and a typed view exposes
+# the data-contract schema (docs/data-contract.md §2.1) as cm360_clicks for
+# Dataform / training to consume.
+resource "google_pubsub_topic" "clicks" {
+  name = "rpc-clicks-${var.env}"
+}
+
+resource "google_bigquery_table" "clicks_raw" {
+  dataset_id          = google_bigquery_dataset.rpc.dataset_id
+  table_id            = "cm360_clicks_raw"
+  deletion_protection = false
+  time_partitioning {
+    type  = "DAY"
+    field = "publish_time"
+  }
+  schema = jsonencode([
+    { name = "subscription_name", type = "STRING", mode = "NULLABLE" },
+    { name = "message_id", type = "STRING", mode = "NULLABLE" },
+    { name = "publish_time", type = "TIMESTAMP", mode = "REQUIRED" },
+    { name = "data", type = "STRING", mode = "NULLABLE" },
+    { name = "attributes", type = "STRING", mode = "NULLABLE" },
+  ])
+}
+
+resource "google_bigquery_table" "clicks_view" {
+  dataset_id          = google_bigquery_dataset.rpc.dataset_id
+  table_id            = "cm360_clicks"
+  deletion_protection = false
+  view {
+    query          = <<-SQL
+      SELECT
+        JSON_EXTRACT_SCALAR(data, '$.click_id')        AS click_id,
+        TIMESTAMP(JSON_EXTRACT_SCALAR(data, '$.click_ts')) AS click_ts,
+        JSON_EXTRACT_SCALAR(data, '$.device')          AS device,
+        JSON_EXTRACT_SCALAR(data, '$.geo')             AS geo,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.hour_of_day') AS INT64) AS hour_of_day,
+        JSON_EXTRACT_SCALAR(data, '$.query_intent')    AS query_intent,
+        JSON_EXTRACT_SCALAR(data, '$.ad_creative_id')  AS ad_creative_id,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.cerberus_score')   AS FLOAT64) AS cerberus_score,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.rpc_7d')           AS FLOAT64) AS rpc_7d,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.rpc_14d')          AS FLOAT64) AS rpc_14d,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.rpc_30d')          AS FLOAT64) AS rpc_30d,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.is_payday_week')   AS BOOL)    AS is_payday_week,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.auction_pressure') AS FLOAT64) AS auction_pressure,
+        JSON_EXTRACT_SCALAR(data, '$.landing_path')          AS landing_path,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.visits_prev_30d')  AS INT64)   AS visits_prev_30d,
+        publish_time                                                      AS ingested_at
+      FROM `${var.project_id}.${google_bigquery_dataset.rpc.dataset_id}.cm360_clicks_raw`
+    SQL
+    use_legacy_sql = false
+  }
+  depends_on = [google_bigquery_table.clicks_raw]
+}
+
+resource "google_pubsub_subscription" "clicks_to_bq" {
+  name  = "rpc-clicks-bq-${var.env}"
+  topic = google_pubsub_topic.clicks.name
+
+  depends_on = [
+    google_project_iam_member.pubsub_bq_data_editor,
+    google_project_iam_member.pubsub_bq_metadata,
+  ]
+
+  bigquery_config {
+    table               = "${var.project_id}.${google_bigquery_dataset.rpc.dataset_id}.${google_bigquery_table.clicks_raw.table_id}"
+    use_topic_schema    = false
+    write_metadata      = true
+    drop_unknown_fields = true
+  }
+}
+
 # --- Service accounts + Workload Identity (§4) ---
 resource "google_service_account" "scoring_api" {
   account_id   = "scoring-api-${var.env}"

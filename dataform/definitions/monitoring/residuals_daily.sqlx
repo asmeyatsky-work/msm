@@ -1,0 +1,57 @@
+config {
+  type: "incremental",
+  schema: "rpc_estimator",
+  description: "Daily aggregate residuals: predicted RPC vs realized ledger revenue. Counts only MODEL-source predictions and only clicks with a ledger row inside the conversion window.",
+  bigquery: {
+    partitionBy: "as_of_date",
+    clusterBy: ["model_version"],
+  },
+}
+
+pre_operations {
+  ${ when(incremental(),
+    `DELETE FROM ${self()}
+     WHERE as_of_date = DATE_SUB(CURRENT_DATE("UTC"), INTERVAL 1 DAY)`
+  ) }
+}
+
+WITH preds AS (
+  SELECT
+    click_id,
+    model_version,
+    predicted_rpc,
+    TIMESTAMP_MILLIS(ts_ms) AS predicted_at
+  FROM ${ref("rpc_predictions")}
+  WHERE source = "MODEL"
+    AND DATE(TIMESTAMP_MILLIS(ts_ms), "UTC")
+        = DATE_SUB(CURRENT_DATE("UTC"), INTERVAL 1 DAY)
+),
+realized AS (
+  SELECT
+    p.click_id,
+    p.model_version,
+    p.predicted_rpc,
+    -- Sum signed ledger rows so refunds reverse the realized total.
+    COALESCE(SUM(r.revenue), 0.0) AS actual_revenue
+  FROM preds p
+  LEFT JOIN ${ref("sales_ledger")} r
+    ON  r.click_id = p.click_id
+    AND r.revenue_ts BETWEEN p.predicted_at
+        AND TIMESTAMP_ADD(p.predicted_at,
+              INTERVAL ${dataform.projectConfig.vars.conversion_window_days || 30} DAY)
+  GROUP BY 1, 2, 3
+)
+SELECT
+  DATE_SUB(CURRENT_DATE("UTC"), INTERVAL 1 DAY) AS as_of_date,
+  model_version,
+  COUNT(*)                                        AS scored_clicks,
+  COUNTIF(actual_revenue > 0)                     AS converted_clicks,
+  AVG(predicted_rpc)                              AS mean_predicted,
+  AVG(actual_revenue)                             AS mean_actual,
+  AVG(predicted_rpc - actual_revenue)             AS mean_signed_residual,
+  AVG(ABS(predicted_rpc - actual_revenue))        AS mae,
+  -- MAPE is undefined when actual=0; restrict to converters.
+  AVG(SAFE_DIVIDE(ABS(predicted_rpc - actual_revenue), actual_revenue))
+    AS mape_converters
+FROM realized
+GROUP BY model_version

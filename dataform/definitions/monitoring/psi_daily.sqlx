@@ -1,0 +1,88 @@
+config {
+  type: "incremental",
+  schema: "rpc_estimator",
+  description: "Daily Population Stability Index per numeric feature (live clicks vs training baseline). PSI < 0.1 = no shift, 0.1-0.25 = moderate, > 0.25 = major.",
+  bigquery: {
+    partitionBy: "as_of_date",
+    clusterBy: ["model_version", "feature"],
+  },
+  assertions: {
+    rowConditions: [
+      "psi >= 0",
+      "feature IS NOT NULL"
+    ],
+  },
+}
+
+-- Idempotent per-day: re-running picks up late-arriving clicks for the same date.
+pre_operations {
+  ${ when(incremental(),
+    `DELETE FROM ${self()}
+     WHERE as_of_date = DATE_SUB(CURRENT_DATE("UTC"), INTERVAL 1 DAY)`
+  ) }
+}
+
+WITH live AS (
+  SELECT
+    DATE(click_ts, "UTC") AS as_of_date,
+    feature,
+    value
+  FROM ${ref("cm360_clicks")},
+  UNNEST([
+    STRUCT("cerberus_score"   AS feature, cerberus_score    AS value),
+    STRUCT("rpc_7d",                       rpc_7d),
+    STRUCT("rpc_14d",                      rpc_14d),
+    STRUCT("rpc_30d",                      rpc_30d),
+    STRUCT("hour_of_day",                  CAST(hour_of_day AS FLOAT64)),
+    STRUCT("auction_pressure",             auction_pressure),
+    STRUCT("visits_prev_30d",              CAST(visits_prev_30d AS FLOAT64))
+  ])
+  WHERE DATE(click_ts, "UTC") = DATE_SUB(CURRENT_DATE("UTC"), INTERVAL 1 DAY)
+),
+binned AS (
+  -- Find which baseline decile each live value falls into. Edges from baseline
+  -- table — values outside the [min, max] of training fall into bins 1 or 10.
+  SELECT
+    l.as_of_date,
+    b.model_version,
+    l.feature,
+    b.decile,
+    COUNT(*) AS live_count,
+    ANY_VALUE(b.training_count) AS training_count
+  FROM live l
+  JOIN ${ref("feature_baseline")} b
+    ON b.feature = l.feature
+   AND l.value >= b.lower
+   AND l.value <= b.upper
+  GROUP BY 1, 2, 3, 4
+),
+totals AS (
+  SELECT
+    as_of_date, model_version, feature,
+    SUM(live_count)     AS live_total,
+    SUM(training_count) AS train_total
+  FROM binned GROUP BY 1, 2, 3
+),
+psi_terms AS (
+  SELECT
+    b.as_of_date,
+    b.model_version,
+    b.feature,
+    -- Laplace-smooth so an empty live bin doesn't NaN the term.
+    (b.live_count + 1)     / (t.live_total + 10)  AS p_live,
+    (b.training_count + 1) / (t.train_total + 10) AS p_base
+  FROM binned b
+  JOIN totals t USING (as_of_date, model_version, feature)
+)
+SELECT
+  as_of_date,
+  model_version,
+  feature,
+  ROUND(SUM((p_live - p_base) * SAFE.LN(p_live / p_base)), 4) AS psi,
+  CASE
+    WHEN SUM((p_live - p_base) * SAFE.LN(p_live / p_base)) > 0.25 THEN "major_shift"
+    WHEN SUM((p_live - p_base) * SAFE.LN(p_live / p_base)) > 0.10 THEN "moderate_shift"
+    ELSE "stable"
+  END AS verdict
+FROM psi_terms
+GROUP BY as_of_date, model_version, feature

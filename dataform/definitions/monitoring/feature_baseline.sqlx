@@ -1,0 +1,46 @@
+config {
+  type: "table",
+  schema: "rpc_estimator",
+  description: "Per-model-version feature distribution snapshot. Materialised once per train; PSI compares live click features against this baseline. Rebuilt by ml-pipeline-train when a new model is registered.",
+  bigquery: {
+    clusterBy: ["model_version", "feature"],
+  },
+  assertions: {
+    nonNull: ["model_version", "feature", "decile", "lower", "upper", "training_count"],
+  },
+}
+
+-- Training-distribution deciles per numeric feature. Binning is fixed at 10
+-- equal-frequency buckets — PSI is well-defined as long as live data uses the
+-- same edges.
+WITH features AS (
+  SELECT
+    "${dataform.projectConfig.vars.model_version || 'unknown'}" AS model_version,
+    feature,
+    value
+  FROM ${ref("rpc_training_rows")},
+  UNNEST([
+    STRUCT("cerberus_score"   AS feature, cerberus_score    AS value),
+    STRUCT("rpc_7d",                       rpc_7d),
+    STRUCT("rpc_14d",                      rpc_14d),
+    STRUCT("rpc_30d",                      rpc_30d),
+    STRUCT("hour_of_day",                  CAST(hour_of_day AS FLOAT64)),
+    STRUCT("auction_pressure",             auction_pressure),
+    STRUCT("visits_prev_30d",              CAST(visits_prev_30d AS FLOAT64))
+  ])
+),
+ranked AS (
+  SELECT
+    model_version, feature, value,
+    NTILE(10) OVER (PARTITION BY feature ORDER BY value) AS decile
+  FROM features
+)
+SELECT
+  model_version,
+  feature,
+  decile,
+  MIN(value)   AS lower,
+  MAX(value)   AS upper,
+  COUNT(*)     AS training_count
+FROM ranked
+GROUP BY model_version, feature, decile
