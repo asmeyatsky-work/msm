@@ -49,3 +49,9 @@ variable "scoring_api_concurrency" {
   type        = number
   default     = 80
 }
+
+variable "scoring_api_p95_threshold_ms" {
+  description = "Cloud Run p95 request_latencies alert threshold for scoring-api. Set from Phase 1.5 load profile (score p95 ~920ms on e2-standard-2 + xgboost-cpu.1-7); add headroom."
+  type        = number
+  default     = 1500
+}

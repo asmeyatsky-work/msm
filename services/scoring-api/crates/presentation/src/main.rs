@@ -307,8 +307,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // VERTEX_EXPLAIN_URL override still wins if explicitly set.
     let explain_url = std::env::var("VERTEX_EXPLAIN_URL").unwrap_or(derived_explain_url);
     let explain = Arc::new(ExplainClick::new(
-        Arc::new(VertexExplain::new(explain_url, Duration::from_millis(1500))),
-        Duration::from_millis(1500), // explain is slow; off hot path
+        Arc::new(VertexExplain::new(explain_url, Duration::from_millis(3000))),
+        Duration::from_millis(3000), // sampled-shapley path_count=10 measures ~1.8s p95 on e2-standard-2
     ));
 
     // Prometheus registry for /metrics (scraped by Cloud Monitoring Managed Service).

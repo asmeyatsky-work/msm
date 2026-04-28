@@ -60,15 +60,17 @@ resource "google_monitoring_alert_policy" "scoring_api_5xx" {
 }
 
 # --- Alert: scoring-api p95 latency -------------------------------------------
-# PRD §2.2 budget on the request path is 100ms total; alert at 250ms p95
-# because Vertex round-trip dominates and varies. Tighten from Phase 1.5.
+# PRD §2.2 budget on the request path is 100ms total, but Vertex AI predict
+# round-trip dominates (~700ms p50 / ~920ms p95 on e2-standard-2 +
+# xgboost-cpu.1-7 measured 2026-04-28). Threshold is var-driven so prod can
+# tighten it once on a larger Vertex machine.
 resource "google_monitoring_alert_policy" "scoring_api_p95_latency" {
-  display_name          = "scoring-api ${var.env} — p95 latency > 250ms (5m)"
+  display_name          = "scoring-api ${var.env} — p95 latency > ${var.scoring_api_p95_threshold_ms}ms (5m)"
   combiner              = "OR"
   notification_channels = var.alert_notification_channels
 
   conditions {
-    display_name = "p95 over 250ms"
+    display_name = "p95 over ${var.scoring_api_p95_threshold_ms}ms"
     condition_threshold {
       filter          = <<-EOT
         resource.type="cloud_run_revision"
@@ -76,7 +78,7 @@ resource "google_monitoring_alert_policy" "scoring_api_p95_latency" {
         metric.type="run.googleapis.com/request_latencies"
       EOT
       comparison      = "COMPARISON_GT"
-      threshold_value = 250
+      threshold_value = var.scoring_api_p95_threshold_ms
       duration        = "300s"
       aggregations {
         alignment_period     = "60s"
