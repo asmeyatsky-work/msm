@@ -193,7 +193,7 @@ cmd_wire_notifications() {
   local existing
   existing=$(gcloud alpha monitoring channels list \
     --project="$PROJECT_STAGING" \
-    --filter="type=email AND labels.email_address=${email}" \
+    --filter="type=email AND labels.email_address=\"${email}\"" \
     --format='value(name)' | head -n1 || true)
 
   local channel_id="$existing"

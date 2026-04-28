@@ -15,3 +15,5 @@ bq_timeout_ms    = 500
 scoring_api_min_instances = 1
 scoring_api_max_instances = 10
 scoring_api_concurrency   = 80
+
+alert_notification_channels = ["projects/msm-rpc/notificationChannels/8278217269236288302"]
