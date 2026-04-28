@@ -64,9 +64,24 @@ impl ExplainEndpoint for VertexExplain {
             .json()
             .await
             .map_err(|e| PortError::Upstream(e.to_string()))?;
-        // Vertex AI explain response shape:
-        //   {"explanations":[{"attributions":[{"baselineOutputValue":..,
-        //       "featureAttributions":{"name":val,...}}]}]}
+        // Vertex AI explain response. Two shapes are seen in the wild:
+        //   (A) per-feature scalars (one named input per feature):
+        //       "featureAttributions": {"hour_of_day": 0.3, "rpc_7d": 1.2, ...}
+        //   (B) one named input ("features") with `index_feature_mapping`,
+        //       attributions returned as a parallel array:
+        //       "featureAttributions": {"features": [0.3, 1.2, ...]}
+        // The deployed `rpc-estimator` model uses shape (B); we still accept
+        // (A) so the integration tests' fake Vertex stays valid.
+        const FEATURE_NAMES: [&str; 8] = [
+            "hour_of_day",
+            "cerberus_score",
+            "rpc_7d",
+            "rpc_14d",
+            "rpc_30d",
+            "is_payday_week",
+            "auction_pressure",
+            "visits_prev_30d",
+        ];
         let attr = parsed
             .pointer("/explanations/0/attributions/0")
             .ok_or_else(|| PortError::Upstream("missing attributions[0]".into()))?;
@@ -78,10 +93,19 @@ impl ExplainEndpoint for VertexExplain {
             .get("featureAttributions")
             .and_then(|v| v.as_object())
             .ok_or_else(|| PortError::Upstream("missing featureAttributions".into()))?;
-        let contributions = feats
-            .iter()
-            .filter_map(|(k, v)| v.as_f64().map(|f| (k.clone(), f)))
-            .collect();
+        let contributions: Vec<(String, f64)> =
+            if let Some(arr) = feats.values().next().and_then(|v| v.as_array()) {
+                FEATURE_NAMES
+                    .iter()
+                    .zip(arr.iter())
+                    .filter_map(|(name, v)| v.as_f64().map(|f| ((*name).to_string(), f)))
+                    .collect()
+            } else {
+                feats
+                    .iter()
+                    .filter_map(|(k, v)| v.as_f64().map(|f| (k.clone(), f)))
+                    .collect()
+            };
         Ok(Attribution {
             base_value,
             contributions,

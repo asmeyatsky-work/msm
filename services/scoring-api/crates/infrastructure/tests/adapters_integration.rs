@@ -75,6 +75,32 @@ async fn vertex_explain_parses_attributions() {
 }
 
 #[tokio::test]
+async fn vertex_explain_parses_indexed_array_shape() {
+    // Vertex returns this shape when explanation_metadata uses
+    // `index_feature_mapping` (single named tensor with parallel array).
+    let server = MockServer::start().await;
+    std::env::set_var("GCP_METADATA_TOKEN_URL", format!("{}/token", server.uri()));
+    stub_token(&server).await;
+    Mock::given(method("POST"))
+        .and(path("/explain"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "explanations": [{"attributions": [{
+                "baselineOutputValue": -4.1,
+                "featureAttributions": {
+                    "features": [0.39, 3.10, 8.55, -1.05, -0.28, 0.07, 0.06, 0.31]
+                }
+            }]}]
+        })))
+        .mount(&server)
+        .await;
+    let ep = VertexExplain::new(format!("{}/explain", server.uri()), Duration::from_secs(2));
+    let a = ep.explain(&features()).await.unwrap();
+    assert!((a.base_value - (-4.1)).abs() < 1e-9);
+    assert_eq!(a.contributions.len(), 8);
+    assert_eq!(a.top_features(1)[0].0, "rpc_7d");
+}
+
+#[tokio::test]
 async fn vertex_explain_errors_on_non_2xx() {
     let server = MockServer::start().await;
     std::env::set_var("GCP_METADATA_TOKEN_URL", format!("{}/token", server.uri()));

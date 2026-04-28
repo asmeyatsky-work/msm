@@ -166,7 +166,7 @@ cmd_deploy_model() {
   # shellcheck disable=SC1091
   source "$venv/bin/activate"
 
-  if ! python3 -c 'import xgboost, google.cloud.aiplatform' 2>/dev/null; then
+  if ! python3 -c 'import xgboost, sklearn, google.cloud.aiplatform' 2>/dev/null; then
     bold "    installing python deps into venv"
     python3 -m pip install --quiet --upgrade pip
     python3 -m pip install --quiet \
