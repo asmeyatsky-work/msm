@@ -288,7 +288,10 @@ impl ScoreClick {
             PredictionSource::FallbackDataLayer => "FALLBACK_DATA_LAYER",
             PredictionSource::KillSwitch => "KILL_SWITCH",
         };
-        let _ = self
+        // Sink failures must not fail the score path (PRD §3 — scoring is
+        // best-effort observable), but they must not be invisible either: a
+        // bare `let _ =` masked a missing pubsub.publisher grant for months.
+        if let Err(e) = self
             .deps
             .predictions
             .record(PredictionRecord {
@@ -299,13 +302,16 @@ impl ScoreClick {
                 model_version: pred.model_version().into(),
                 ts_ms: self.deps.clock.now_epoch_ms(),
             })
-            .await;
+            .await
+        {
+            warn!(error = %e, "prediction sink record failed");
+        }
     }
 
     async fn audit(&self, pred: &Prediction, reason: &'static str) {
         // Hash is deliberately simple here; a crypto hash lives in infrastructure.
         let after_hash = format!("{:?}:{}", pred.source(), pred.rpc().value());
-        let _ = self
+        if let Err(e) = self
             .deps
             .audit
             .record(AuditEvent {
@@ -317,7 +323,10 @@ impl ScoreClick {
                 after_hash,
                 source: reason,
             })
-            .await;
+            .await
+        {
+            warn!(error = %e, "audit sink record failed");
+        }
     }
 }
 

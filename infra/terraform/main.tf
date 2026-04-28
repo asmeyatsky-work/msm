@@ -290,6 +290,23 @@ resource "google_storage_bucket_iam_member" "vertex_sa_artifacts_reader" {
   member = "serviceAccount:service-${data.google_project.this.number}@gcp-sa-aiplatform.iam.gserviceaccount.com"
 }
 
+# scoring-api publishes one envelope per prediction to `rpc-predictions` (which
+# the Pub/Sub→BQ subscription writes to `rpc_predictions_raw`) and one event
+# per score to the append-only `rpc-audit` topic. Without these grants, every
+# publish silently 403s — the application code drops the result with `let _ =`
+# so this was invisible until BQ landed 0 rows. See assessment 2026-04-28.
+resource "google_pubsub_topic_iam_member" "scoring_api_predictions_publisher" {
+  topic  = google_pubsub_topic.predictions.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.scoring_api.email}"
+}
+
+resource "google_pubsub_topic_iam_member" "scoring_api_audit_publisher" {
+  topic  = google_pubsub_topic.audit.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.scoring_api.email}"
+}
+
 # --- Runtime config (PRD §5 Kill Switch without redeploy) ---
 resource "google_secret_manager_secret" "runtime_config" {
   secret_id = "rpc-runtime-config-${var.env}"
