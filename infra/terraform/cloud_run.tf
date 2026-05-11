@@ -160,9 +160,10 @@ resource "google_cloud_run_v2_service" "dashboard" {
         container_port = 8080
       }
       resources {
+        # 512Mi is the minimum when min_instances >= 1 (CPU always allocated).
         limits = {
           cpu    = "1"
-          memory = "256Mi"
+          memory = "512Mi"
         }
       }
       env {
