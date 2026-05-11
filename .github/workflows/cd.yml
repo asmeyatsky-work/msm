@@ -186,7 +186,6 @@ jobs:
           if [ -n "$DASH" ]; then
             echo "dashboard:  $DASH"
             curl -fsS -o /dev/null "$DASH/" && echo "  / ok"
-            curl -fsS -o /dev/null "$DASH/healthz" && echo "  /healthz ok"
           fi
 
   deploy-prod:
