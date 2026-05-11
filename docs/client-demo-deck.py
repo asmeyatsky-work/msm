@@ -344,396 +344,56 @@ def slide_deliverables(prs):
 
 
 def slide_architecture(prs):
-    """Engineering architecture, redesigned for visual discipline:
-    three horizontal lanes, right-angle (elbow) arrows only,
-    dedicated routing channels, no overlapping lines.
+    """Embeds docs/architecture.png as the full architecture slide.
+    Save the chosen render to that path. If the file is missing, the slide
+    shows a placeholder so the deck still builds.
     """
     s = prs.slides.add_slide(prs.slide_layouts[6])
     title_bar(s, prs, "End-to-end architecture",
               eyebrow="Predictive RPC Estimator")
 
-    # Palette
-    BLUE_SVC   = RGBColor(0x4E, 0x88, 0xE6)
-    BLUE_DEEP  = RGBColor(0x1F, 0x4C, 0xA6)
-    GREEN_VTX  = RGBColor(0x34, 0xA8, 0x53)
-    TEAL_PIPE  = RGBColor(0x00, 0x97, 0xA7)
-    PURPLE_BQ  = RGBColor(0x7E, 0x57, 0xC2)
-    PUBSUB     = RGBColor(0xA0, 0x6C, 0xD6)
-    GREY_BG    = RGBColor(0xF1, 0xF3, 0xF8)
-    GREY_LINE  = RGBColor(0xC9, 0xCF, 0xDA)
-    LANE_BG_A  = RGBColor(0xE8, 0xEF, 0xF7)
-    LANE_BG_B  = RGBColor(0xF1, 0xEC, 0xF8)
-    LANE_BG_C  = RGBColor(0xEC, 0xF3, 0xEE)
-    ARROW      = RGBColor(0x46, 0x55, 0x6B)
-
-    # ── GCP boundary ──────────────────────────────────────────────
-    BX, BY = Inches(0.4), Inches(1.1)
-    BW, BH = prs.slide_width - Inches(0.8), Inches(5.6)
-    boundary = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, BX, BY, BW, BH)
-    boundary.adjustments[0] = 0.015
-    fill(boundary, GREY_BG)
-    boundary.line.color.rgb = GREY_LINE
-    boundary.line.width = Pt(1.0)
-
-    cap = s.shapes.add_textbox(BX + Inches(0.18), BY + Inches(0.06),
-                               Inches(8), Inches(0.3))
-    pp = cap.text_frame.paragraphs[0]
-    run(pp, "Google Cloud Platform", size=11, bold=True, color=NAVY)
-    run(pp, "    europe-west2 (London)", size=10, color=MUTED, italic=True)
-
-    # ── Lane geometry (3 lanes, equal height, generous gaps) ─────
-    inner_x = BX + Inches(0.25)
-    inner_w = BW - Inches(0.5)
-    lane_top   = BY + Inches(0.5)
-    lane_h     = Inches(1.45)
-    lane_gap   = Inches(0.15)
-    laneA_y = lane_top
-    laneB_y = laneA_y + lane_h + lane_gap
-    laneC_y = laneB_y + lane_h + lane_gap
-
-    def lane_bg(y, color, label):
-        bg = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, inner_x, y, inner_w, lane_h)
-        fill(bg, color)
-        bg.line.color.rgb = GREY_LINE; bg.line.width = Pt(0.5)
-        lab = s.shapes.add_textbox(inner_x + Inches(0.1), y + Inches(0.05),
-                                   Inches(3.0), Inches(0.25))
-        p = lab.text_frame.paragraphs[0]
-        run(p, label.upper(), size=8, bold=True, color=MUTED)
-
-    lane_bg(laneA_y, LANE_BG_A, "Hot path · serving")
-    lane_bg(laneB_y, LANE_BG_B, "Data plane · warehouse and training")
-    lane_bg(laneC_y, LANE_BG_C, "Consumption · resilience and activation")
-
-    # ── Helpers ──────────────────────────────────────────────────
-    def comp(left, top, w, h, label, sublabel, color=BLUE_SVC, text=WHITE,
-             label_size=11, sub_size=8):
-        box = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, w, h)
-        box.adjustments[0] = 0.10
-        fill(box, color)
-        box.line.fill.background()
-        tf = box.text_frame
-        tf.margin_left = Inches(0.08); tf.margin_right = Inches(0.08)
-        tf.margin_top = Inches(0.05); tf.margin_bottom = Inches(0.05)
+    img_path = Path(__file__).parent / "architecture.png"
+    if img_path.exists():
+        # Fit image into the body area, preserving aspect ratio.
+        canvas_left   = Inches(0.4)
+        canvas_top    = Inches(1.15)
+        canvas_width  = prs.slide_width  - Inches(0.8)
+        canvas_height = prs.slide_height - Inches(1.5) - Inches(0.35)  # leave footer
+        from PIL import Image  # type: ignore
+        try:
+            with Image.open(img_path) as im:
+                iw, ih = im.size
+            aspect = iw / ih
+            if canvas_width / canvas_height > aspect:
+                # constrained by height
+                h = canvas_height
+                w = int(h * aspect)
+            else:
+                w = canvas_width
+                h = int(w / aspect)
+            left = canvas_left + (canvas_width - w) // 2
+            top  = canvas_top  + (canvas_height - h) // 2
+            s.shapes.add_picture(str(img_path), left, top, width=w, height=h)
+        except Exception:
+            s.shapes.add_picture(str(img_path), canvas_left, canvas_top,
+                                 width=canvas_width)
+    else:
+        # Placeholder
+        box = s.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(2), Inches(2.8), Inches(9.3), Inches(2),
+        )
+        box.adjustments[0] = 0.05
+        fill(box, LIGHT)
+        box.line.color.rgb = RULE; box.line.width = Pt(0.75)
+        tf = box.text_frame; tf.word_wrap = True
         tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-        tf.word_wrap = True
+        tf.margin_left = Inches(0.4); tf.margin_right = Inches(0.4)
         p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-        run(p, label, size=label_size, bold=True, color=text)
-        if sublabel:
-            p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
-            run(p2, sublabel, size=sub_size, color=text)
-        return box
-
-    def hex_topic(left, top, w, h, name):
-        box = s.shapes.add_shape(MSO_SHAPE.HEXAGON, left, top, w, h)
-        fill(box, PUBSUB)
-        box.line.fill.background()
-        tf = box.text_frame
-        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-        p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-        run(p, "Pub/Sub", size=9, bold=True, color=WHITE)
-        # caption underneath
-        cap = s.shapes.add_textbox(left - Inches(0.15), top + h + Inches(0.02),
-                                   w + Inches(0.3), Inches(0.22))
-        pc = cap.text_frame.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
-        run(pc, name, size=8, color=SLATE)
-        return box
-
-    def line_segment(x1, y1, x2, y2, color=ARROW, weight=1.25, with_head=False):
-        con = s.shapes.add_connector(1, x1, y1, x2, y2)
-        con.line.color.rgb = color
-        con.line.width = Pt(weight)
-        if with_head:
-            from pptx.oxml.ns import qn
-            ln = con.line._get_or_add_ln()
-            tail = ln.makeelement(qn('a:tailEnd'),
-                                  {'type': 'triangle', 'w': 'med', 'h': 'med'})
-            ln.append(tail)
-        return con
-
-    def arrow_h(x1, x2, y, color=ARROW, weight=1.25):
-        """Horizontal arrow with head at (x2,y)."""
-        line_segment(x1, y, x2, y, color=color, weight=weight, with_head=True)
-
-    def arrow_v(x, y1, y2, color=ARROW, weight=1.25):
-        line_segment(x, y1, x, y2, color=color, weight=weight, with_head=True)
-
-    def elbow(x1, y1, x2, y2, via="h", color=ARROW, weight=1.25):
-        """Right-angle two-segment connector with arrowhead on the second."""
-        if via == "h":  # horizontal first, then vertical
-            line_segment(x1, y1, x2, y1, color=color, weight=weight)
-            line_segment(x2, y1, x2, y2, color=color, weight=weight, with_head=True)
-        else:  # vertical first, then horizontal
-            line_segment(x1, y1, x1, y2, color=color, weight=weight)
-            line_segment(x1, y2, x2, y2, color=color, weight=weight, with_head=True)
-
-    def text_at(left, top, w, h, text, size=8, color=MUTED, bold=False, italic=True,
-                align=PP_ALIGN.CENTER):
-        tb = s.shapes.add_textbox(left, top, w, h)
-        tf = tb.text_frame; tf.word_wrap = True
-        tf.margin_left = Inches(0.02); tf.margin_right = Inches(0.02)
-        tf.margin_top = Inches(0); tf.margin_bottom = Inches(0)
-        p = tf.paragraphs[0]; p.alignment = align
-        run(p, text, size=size, color=color, bold=bold, italic=italic)
-        return tb
-
-    def actor(left, top, label):
-        head = s.shapes.add_shape(MSO_SHAPE.OVAL, left + Inches(0.15), top,
-                                  Inches(0.22), Inches(0.22))
-        fill(head, SLATE)
-        body = s.shapes.add_shape(MSO_SHAPE.ISOSCELES_TRIANGLE,
-                                  left, top + Inches(0.20),
-                                  Inches(0.52), Inches(0.42))
-        fill(body, SLATE)
-        cap = s.shapes.add_textbox(left - Inches(0.2), top + Inches(0.65),
-                                   Inches(0.92), Inches(0.3))
-        p = cap.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-        run(p, label, size=9, bold=True, color=SLATE)
-
-    # ── LANE A — Hot path ────────────────────────────────────────
-    # Components on a single horizontal line, generous spacing.
-    a_box_top = laneA_y + Inches(0.45)
-    a_box_h   = Inches(0.85)
-    # Define centerline for paired arrows
-    A_CENTER = a_box_top + a_box_h / 2
-
-    # Scoring API
-    scoring_x = Inches(1.7); scoring_w = Inches(2.8)
-    comp(scoring_x, a_box_top, scoring_w, a_box_h,
-         "Scoring API", "Rust 1.89  ·  Cloud Run", color=BLUE_SVC)
-
-    # Vertex AI
-    vertex_x = Inches(5.4); vertex_w = Inches(2.6)
-    comp(vertex_x, a_box_top, vertex_w, a_box_h,
-         "Vertex AI Endpoint", "XGBoost regressor", color=GREEN_VTX)
-
-    # Dashboard UI
-    dash_x = Inches(9.9); dash_w = Inches(2.6)
-    comp(dash_x, a_box_top, dash_w, a_box_h,
-         "Dashboard UI", "TypeScript · React · nginx · Cloud Run",
-         color=BLUE_SVC)
-
-    # Actors
-    actor(Inches(0.7), laneA_y + Inches(0.5), "Client")
-    actor(Inches(12.65) + Inches(0.0) - Inches(0.6), laneA_y + Inches(0.5), "Executive")
-
-    # Hot-path arrows (strictly horizontal, paired req/resp)
-    arrow_h(Inches(1.25), scoring_x, A_CENTER - Inches(0.04))
-    text_at(Inches(1.25), A_CENTER - Inches(0.32), Inches(0.55), Inches(0.2),
-            "HTTPS", size=7)
-    # Scoring → Vertex (predict)
-    arrow_h(scoring_x + scoring_w, vertex_x, A_CENTER - Inches(0.15))
-    text_at(scoring_x + scoring_w, A_CENTER - Inches(0.36),
-            vertex_x - (scoring_x + scoring_w), Inches(0.2),
-            "predict", size=7)
-    # Vertex → Scoring (predicted_rpc)
-    arrow_h(vertex_x, scoring_x + scoring_w, A_CENTER + Inches(0.15))
-    text_at(scoring_x + scoring_w, A_CENTER + Inches(0.15),
-            vertex_x - (scoring_x + scoring_w), Inches(0.2),
-            "predicted_rpc", size=7)
-    # Executive → Dashboard
-    arrow_h(Inches(12.55) - Inches(0.0), dash_x + dash_w, A_CENTER)
-
-    # Guardrails callout under Scoring (still inside Lane A)
-    guard_y = a_box_top + a_box_h - Inches(0.05)
-    # nothing more needed — guardrails listed in legend/footnote
-
-    # ── LANE B — Data plane ──────────────────────────────────────
-    b_box_top = laneB_y + Inches(0.45)
-    b_box_h   = Inches(0.85)
-    B_CENTER  = b_box_top + b_box_h / 2
-
-    # Pub/Sub: predictions  (directly below Scoring API)
-    ps_pred_w = Inches(1.3); ps_pred_h = Inches(0.55)
-    ps_pred_x = scoring_x + (scoring_w - ps_pred_w) / 2
-    ps_pred_y = b_box_top + Inches(0.05)
-    hex_topic(ps_pred_x, ps_pred_y, ps_pred_w, ps_pred_h, "rpc-predictions-staging")
-
-    # BigQuery warehouse
-    bq_x = Inches(5.4); bq_w = Inches(2.6); bq_h = Inches(1.05)
-    bq_y = b_box_top - Inches(0.08)
-    bqshape = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, bq_x, bq_y, bq_w, bq_h)
-    bqshape.adjustments[0] = 0.08
-    fill(bqshape, PURPLE_BQ); bqshape.line.fill.background()
-    tf = bqshape.text_frame; tf.word_wrap = True
-    tf.margin_left = Inches(0.08); tf.margin_right = Inches(0.08)
-    tf.margin_top = Inches(0.06)
-    p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-    run(p, "BigQuery", size=11, bold=True, color=WHITE)
-    p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
-    run(p2, "Data warehouse", size=8, color=WHITE)
-    p3 = tf.add_paragraph(); p3.alignment = PP_ALIGN.CENTER
-    p3.space_before = Pt(3)
-    run(p3, "rpc_predictions  ·  sales_ledger", size=7, italic=True, color=WHITE)
-    p4 = tf.add_paragraph(); p4.alignment = PP_ALIGN.CENTER
-    run(p4, "predictions_vs_revenue", size=7, italic=True, color=WHITE)
-
-    # ML Ops Pipeline
-    ml_x = Inches(9.0); ml_w = Inches(2.4)
-    comp(ml_x, b_box_top, ml_w, b_box_h,
-         "ML Ops Pipeline", "Python 3.12  ·  Vertex AI Pipelines",
-         color=TEAL_PIPE)
-
-    # Cloud Storage (model artifacts)
-    cs_x = Inches(11.7); cs_w = Inches(0.7); cs_h = Inches(0.85)
-    can = s.shapes.add_shape(MSO_SHAPE.CAN, cs_x, b_box_top, cs_w, cs_h)
-    fill(can, MUTED); can.line.fill.background()
-    cs_cap = s.shapes.add_textbox(cs_x - Inches(0.15), b_box_top + cs_h - Inches(0.02),
-                                  cs_w + Inches(0.3), Inches(0.25))
-    pcs = cs_cap.text_frame.paragraphs[0]; pcs.alignment = PP_ALIGN.CENTER
-    run(pcs, "Cloud Storage", size=7, bold=True, color=SLATE)
-
-    # Lane B arrows (horizontal only)
-    # Pub/Sub predictions → BigQuery
-    arrow_h(ps_pred_x + ps_pred_w, bq_x,
-            ps_pred_y + ps_pred_h / 2)
-    text_at(ps_pred_x + ps_pred_w, ps_pred_y - Inches(0.14),
-            bq_x - (ps_pred_x + ps_pred_w), Inches(0.18),
-            "BigQuery sub", size=7)
-    # BigQuery → ML Pipeline (training data)
-    arrow_h(bq_x + bq_w, ml_x, B_CENTER)
-    text_at(bq_x + bq_w, B_CENTER - Inches(0.22),
-            ml_x - (bq_x + bq_w), Inches(0.2),
-            "training data", size=7)
-    # ML Pipeline → Cloud Storage (artifacts)
-    arrow_h(ml_x + ml_w, cs_x, B_CENTER)
-    text_at(ml_x + ml_w, B_CENTER - Inches(0.22),
-            cs_x - (ml_x + ml_w), Inches(0.18),
-            "artifacts", size=7)
-
-    # ── Inter-lane: Scoring → Pub/Sub predictions (straight down) ──
-    arrow_v(ps_pred_x + ps_pred_w / 2,
-            a_box_top + a_box_h,
-            ps_pred_y, weight=1.25)
-    text_at(ps_pred_x + ps_pred_w / 2 - Inches(0.55),
-            a_box_top + a_box_h + Inches(0.02),
-            Inches(1.1), Inches(0.18),
-            "emit prediction", size=7)
-
-    # ── Inter-lane: ML Pipeline → Vertex (deploy, dashed) ────────
-    # Use a clean elbow that runs in the channel BETWEEN lanes, not through any box.
-    channel_y = laneA_y + lane_h + lane_gap / 2  # mid-channel between A and B
-    # Start from ML Pipeline top, go up to channel, across left to Vertex bottom-center.
-    ml_top_center_x = ml_x + ml_w / 2
-    vertex_bottom_x = vertex_x + vertex_w / 2
-    # Vertical from ML Pipeline top to channel
-    line_segment(ml_top_center_x, b_box_top, ml_top_center_x, channel_y,
-                 color=GREEN_VTX, weight=1.0)
-    # Horizontal across channel to above Vertex
-    line_segment(ml_top_center_x, channel_y, vertex_bottom_x, channel_y,
-                 color=GREEN_VTX, weight=1.0)
-    # Vertical down into Vertex
-    line_segment(vertex_bottom_x, channel_y, vertex_bottom_x, a_box_top + a_box_h,
-                 color=GREEN_VTX, weight=1.0, with_head=True)
-    text_at(ml_top_center_x - Inches(1.5), channel_y - Inches(0.18),
-            Inches(1.4), Inches(0.18),
-            "deploy / retrain", size=7, color=GREEN_VTX)
-
-    # ── LANE C — Consumption ─────────────────────────────────────
-    c_box_top = laneC_y + Inches(0.45)
-    c_box_h   = Inches(0.85)
-    C_CENTER  = c_box_top + c_box_h / 2
-
-    # Breaker Automation (below Scoring, lane C)
-    br_x = scoring_x; br_w = Inches(2.2)
-    comp(br_x, c_box_top, br_w, c_box_h,
-         "Breaker Automation", "Python  ·  flips kill-switch", color=BLUE_SVC)
-
-    # Secret Manager (between breaker and bq area)
-    sm_x = br_x + br_w + Inches(0.2); sm_w = Inches(1.5); sm_h = Inches(0.55)
-    sm_y = c_box_top + Inches(0.15)
-    sm = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, sm_x, sm_y, sm_w, sm_h)
-    sm.adjustments[0] = 0.2
-    fill(sm, WHITE); sm.line.color.rgb = GREY_LINE; sm.line.width = Pt(0.75)
-    tf = sm.text_frame; tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-    p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-    run(p, "Secret Manager", size=9, bold=True, color=NAVY)
-
-    # Reconciliation Service (directly below BigQuery)
-    rc_x = bq_x; rc_w = bq_w
-    comp(rc_x, c_box_top, rc_w, c_box_h,
-         "Reconciliation Service", "Python FastAPI  ·  Cloud Run",
-         color=BLUE_SVC)
-
-    # Activation Service (right side)
-    av_x = Inches(9.0); av_w = Inches(2.4)
-    comp(av_x, c_box_top, av_w, c_box_h,
-         "Activation Service", "Python 3.12  ·  Cloud Run",
-         color=BLUE_SVC)
-
-    # Sinks
-    sinks_x = av_x + av_w + Inches(0.15)
-    for i, sink in enumerate(["SA360", "SSGTM", "OCI"]):
-        lab = s.shapes.add_textbox(sinks_x, c_box_top + Inches(0.05) + Inches(i * 0.26),
-                                   Inches(1.0), Inches(0.24))
-        p = lab.text_frame.paragraphs[0]
-        run(p, "→  " + sink, size=9, bold=True, color=SLATE)
-
-    # Lane C arrows (horizontal within lane)
-    # Breaker → Secret Manager
-    arrow_h(br_x + br_w, sm_x, sm_y + sm_h / 2)
-    # Activation → sinks (single arrow into sink column)
-    arrow_h(av_x + av_w, sinks_x - Inches(0.05), C_CENTER)
-
-    # ── Inter-lane: Secret Manager → Scoring (up channel) ───────
-    sm_cx = sm_x + sm_w / 2
-    # vertical up through lane B channel — but must avoid traversing BQ.
-    # SM is at x ≈ 4.7. BQ is x=5.4..8.0. So a straight vertical at 4.7 will
-    # pass through Lane B background but NOT through BQ (which starts at 5.4).
-    # That clears the requirement: no arrow crosses a component box.
-    line_segment(sm_cx, sm_y, sm_cx, a_box_top + a_box_h,
-                 color=ARROW, weight=1.0, with_head=True)
-    text_at(sm_cx + Inches(0.05), (sm_y + a_box_top + a_box_h) / 2 - Inches(0.1),
-            Inches(1.6), Inches(0.18),
-            "kill-switch flag", size=7, italic=True, color=MUTED, align=PP_ALIGN.LEFT)
-
-    # ── Inter-lane: BigQuery → Reconciliation (straight down) ───
-    bq_bot_cx = bq_x + bq_w / 2
-    line_segment(bq_bot_cx, bq_y + bq_h, bq_bot_cx, c_box_top,
-                 color=ARROW, weight=1.25, with_head=True)
-    text_at(bq_bot_cx - Inches(1.2), (bq_y + bq_h + c_box_top) / 2 - Inches(0.1),
-            Inches(1.1), Inches(0.18),
-            "predictions_vs_revenue", size=7)
-
-    # ── Inter-lane: Reconciliation → Dashboard (straight up) ────
-    rec_top_cx = rc_x + rc_w - Inches(0.4)
-    # Need to avoid BigQuery. Route along right edge of Reconciliation column.
-    # Go up via the gap channel between BigQuery and Dashboard (x ~ 8.4)
-    channel_x = Inches(8.4)
-    # First: out the right of Reconciliation
-    line_segment(rc_x + rc_w, C_CENTER, channel_x, C_CENTER,
-                 color=ARROW, weight=1.0)
-    # Up through lane gaps to lane A
-    line_segment(channel_x, C_CENTER, channel_x, A_CENTER,
-                 color=ARROW, weight=1.0)
-    # Right into Dashboard
-    line_segment(channel_x, A_CENTER, dash_x, A_CENTER,
-                 color=ARROW, weight=1.0, with_head=True)
-    text_at(channel_x + Inches(0.05), A_CENTER - Inches(0.22),
-            Inches(1.1), Inches(0.18),
-            "HTTPS /api", size=7, italic=True, color=MUTED, align=PP_ALIGN.LEFT)
-
-    # ── Inter-lane: BigQuery → Activation (down-right) ──────────
-    # Activation reads predictions from BQ to push to sinks. Route via channel_x.
-    line_segment(bq_x + bq_w, bq_y + bq_h - Inches(0.25),
-                 av_x + Inches(0.4), bq_y + bq_h - Inches(0.25),
-                 color=ARROW, weight=1.0)
-    line_segment(av_x + Inches(0.4), bq_y + bq_h - Inches(0.25),
-                 av_x + Inches(0.4), c_box_top,
-                 color=ARROW, weight=1.0, with_head=True)
-    text_at(av_x - Inches(0.4), bq_y + bq_h - Inches(0.45),
-            Inches(1.6), Inches(0.18),
-            "predictions", size=7)
-
-    # ── Footnote: guardrails & CI/CD (text only, no diagram clutter) ─
-    foot = s.shapes.add_textbox(BX + Inches(0.25), BY + BH - Inches(0.55),
-                                BW - Inches(0.5), Inches(0.5))
-    tf = foot.text_frame; tf.word_wrap = True
-    p = tf.paragraphs[0]
-    run(p, "Scoring API guardrails:  ", size=9, bold=True, color=BLUE_DEEP)
-    run(p, "prediction bounds  ·  negative clamp  ·  model & BigQuery timeouts  ·  anomaly window  ·  circuit-breaker  ·  kill-switch.", size=9, color=SLATE)
-    p2 = tf.add_paragraph()
-    run(p2, "Delivery:  ", size=9, bold=True, color=BLUE_DEEP)
-    run(p2, "GitHub  →  Workload Identity Federation  →  Cloud Build  →  Artifact Registry  →  Cloud Run, gated on test, coverage and supply-chain scans.", size=9, color=SLATE)
+        run(p, "Architecture diagram", size=18, bold=True, color=NAVY)
+        p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
+        run(p2, "Save the chosen render as  docs/architecture.png  and regenerate the deck.",
+            size=12, color=MUTED, italic=True)
 
     footer(s, prs, 6)
 
