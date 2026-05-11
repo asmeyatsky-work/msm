@@ -30,7 +30,7 @@ MUTED  = RGBColor(0x6B, 0x73, 0x80)
 RULE   = RGBColor(0xD7, 0xDB, 0xE3)
 
 FONT = "Calibri"
-TOTAL_PAGES = 14
+TOTAL_PAGES = 15
 
 
 def run(p, text, size=14, bold=False, color=SLATE, font=FONT, italic=False):
@@ -232,6 +232,117 @@ def slide_solution(prs):
     footer(s, prs, 4)
 
 
+def slide_deliverables(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    title_bar(s, prs, "Deliverables and audience",
+              eyebrow="What you receive, who consumes it")
+
+    rows = [
+        ("dashboard/  (React + nginx)",
+         "Executive UI",
+         "Yes — primary demo",
+         "primary"),
+        ("scoring-api  /v1/score, /v1/explain",
+         "Their backend / SA360 integration",
+         "API only — show via curl / Postman on slide 7",
+         "api"),
+        ("reconciliation  /reconciliation",
+         "Powers the dashboard",
+         "API only — invisible to client",
+         "api"),
+        ("activation",
+         "SA360 / SSGTM push",
+         "Backend, no UI",
+         "backend"),
+        ("breaker-automation, ml-pipeline, bounds-calibration",
+         "Internal / scheduled",
+         "Backend",
+         "backend"),
+        ("mcp-servers/scoring-mcp, mlops-mcp",
+         "Agent tooling for engineers",
+         "Not client-facing",
+         "backend"),
+        ("Dataform models, BigQuery views",
+         "Analyst layer",
+         "Available in Looker Studio as a second visual artefact (optional)",
+         "optional"),
+    ]
+
+    # Layout
+    top    = Inches(1.25)
+    left   = Inches(0.5)
+    width  = prs.slide_width - Inches(1.0)
+    header_h = Inches(0.45)
+    row_h    = Inches(0.55)
+    col_w = [Inches(4.6), Inches(3.4), width - Inches(4.6) - Inches(3.4)]
+
+    # Header
+    hx = left
+    for i, label in enumerate(["What", "Audience", "Client-facing?"]):
+        cell = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, hx, top, col_w[i], header_h)
+        fill(cell, NAVY)
+        tf = cell.text_frame
+        tf.margin_left = Inches(0.18); tf.margin_top = Inches(0.08)
+        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        p = tf.paragraphs[0]
+        run(p, label.upper(), size=10, bold=True, color=WHITE)
+        hx += col_w[i]
+
+    # Body
+    badge_color = {
+        "primary":  GREEN,
+        "api":      TEAL,
+        "backend":  MUTED,
+        "optional": ACCENT,
+    }
+
+    y = top + header_h
+    for idx, (what, audience, client, kind) in enumerate(rows):
+        # zebra background
+        bg = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, y, width, row_h)
+        fill(bg, LIGHT if idx % 2 == 0 else WHITE)
+        bg.line.color.rgb = RULE
+        bg.line.width = Pt(0.5)
+
+        # Left accent stripe coloured by row kind
+        stripe = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, y, Inches(0.06), row_h)
+        fill(stripe, badge_color[kind])
+
+        # Column 1 — What
+        c1 = s.shapes.add_textbox(left + Inches(0.18), y, col_w[0] - Inches(0.18), row_h)
+        c1.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+        p = c1.text_frame.paragraphs[0]
+        run(p, what, size=11, bold=True, color=NAVY, font="Consolas")
+
+        # Column 2 — Audience
+        c2 = s.shapes.add_textbox(left + col_w[0], y, col_w[1], row_h)
+        c2.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+        p = c2.text_frame.paragraphs[0]
+        run(p, audience, size=11, color=SLATE)
+
+        # Column 3 — Client-facing (with leading dot)
+        c3 = s.shapes.add_textbox(left + col_w[0] + col_w[1], y, col_w[2], row_h)
+        c3.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+        c3.text_frame.word_wrap = True
+        p = c3.text_frame.paragraphs[0]
+        run(p, "● ", size=11, bold=True, color=badge_color[kind])
+        run(p, client, size=11,
+            bold=(kind == "primary"),
+            color=(NAVY if kind == "primary" else SLATE))
+
+        y += row_h
+
+    # Footnote
+    note = s.shapes.add_textbox(left, y + Inches(0.12), width, Inches(0.5))
+    p = note.text_frame.paragraphs[0]
+    run(p,
+        "Nothing else in the repository is a runnable demo. The dashboard plus a handful of API "
+        "calls against the scoring service is the complete client-facing surface.",
+        size=10, italic=True, color=MUTED)
+
+    footer(s, prs, 6)
+
+
 def slide_architecture(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     title_bar(s, prs, "How it works", eyebrow="Architecture, in one picture")
@@ -335,7 +446,7 @@ def slide_demo_script(prs):
         ("mute", f"Dashboard  ·  {DEMO_URL}"),
         ("mute", f"Scoring API  ·  {API_URL}"),
     ], font_size=14)
-    footer(s, prs, 6)
+    footer(s, prs, 7)
 
 
 def slide_performance(prs):
@@ -358,7 +469,7 @@ def slide_performance(prs):
         ("b", "Production sizing has been pre-computed from these numbers — a larger Vertex machine and a minimum of two replicas keep the same headroom under client traffic."),
         ("mute", "Source: ops/perf/20260428T094507Z__v1_score.json  ·  tool: oha, 30s @ c=10  ·  europe-west2"),
     ], top=Inches(3.1), font_size=13)
-    footer(s, prs, 7)
+    footer(s, prs, 8)
 
 
 def slide_engineering(prs):
@@ -386,7 +497,7 @@ def slide_engineering(prs):
     body_box(s, prs, right_col,
              top=Inches(1.25), left=Inches(7.0),
              width=Inches(6.0), font_size=13)
-    footer(s, prs, 8)
+    footer(s, prs, 9)
 
 
 def slide_security(prs):
@@ -405,7 +516,7 @@ def slide_security(prs):
         ("h", "Supply chain"),
         ("b", "Container images pinned by digest; dependency scanning runs on every PR; no third-party model weights are downloaded at runtime."),
     ], font_size=13)
-    footer(s, prs, 9)
+    footer(s, prs, 10)
 
 
 def slide_data_model(prs):
@@ -424,7 +535,7 @@ def slide_data_model(prs):
         ("b", "Drift monitoring on inputs (PSI) and on outputs vs the reconciled ledger keeps the model honest in production."),
         ("mute", "Today's demo runs against a model trained on a synthetic dataset that mirrors the agreed schema. Retraining on real data is the first work item once the data contract is signed."),
     ], font_size=13)
-    footer(s, prs, 10)
+    footer(s, prs, 11)
 
 
 def slide_operability(prs):
@@ -442,7 +553,7 @@ def slide_operability(prs):
         ("h", "Rollback"),
         ("b", "Vertex traffic-split rollback to the previous model version is a single command; Cloud Run revisions are pinned and revertible."),
     ], font_size=13)
-    footer(s, prs, 11)
+    footer(s, prs, 12)
 
 
 def slide_roadmap(prs):
@@ -501,7 +612,7 @@ def slide_roadmap(prs):
     run(p, "Indicative timeline: ~8 weeks from kickoff, gated on data access. "
         "Each phase ends in a working, demoable artefact.",
         size=11, italic=True, color=MUTED)
-    footer(s, prs, 12)
+    footer(s, prs, 13)
 
 
 def slide_commercials(prs):
@@ -518,7 +629,7 @@ def slide_commercials(prs):
         ("h", "What you get in eight weeks"),
         ("b", "A production service, on your data, with your on-call team in the cockpit and a signed handover."),
     ], font_size=14)
-    footer(s, prs, 13)
+    footer(s, prs, 14)
 
 
 def slide_thanks(prs):
@@ -552,16 +663,17 @@ def main():
     slide_exec_summary(prs)     # 2
     slide_problem(prs)          # 3
     slide_solution(prs)         # 4
-    slide_architecture(prs)     # 5
-    slide_demo_script(prs)      # 6
-    slide_performance(prs)      # 7
-    slide_engineering(prs)      # 8
-    slide_security(prs)         # 9
-    slide_data_model(prs)       # 10
-    slide_operability(prs)      # 11
-    slide_roadmap(prs)          # 12
-    slide_commercials(prs)      # 13
-    slide_thanks(prs)           # 14
+    slide_deliverables(prs)     # 5
+    slide_architecture(prs)     # 6
+    slide_demo_script(prs)      # 7
+    slide_performance(prs)      # 8
+    slide_engineering(prs)      # 9
+    slide_security(prs)         # 10
+    slide_data_model(prs)       # 11
+    slide_operability(prs)      # 12
+    slide_roadmap(prs)          # 13
+    slide_commercials(prs)      # 14
+    slide_thanks(prs)           # 15
 
     prs.save(OUT)
     print(f"wrote {OUT}  ({OUT.stat().st_size:,} bytes, {len(prs.slides)} slides)")
