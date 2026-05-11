@@ -340,96 +340,356 @@ def slide_deliverables(prs):
         "calls against the scoring service is the complete client-facing surface.",
         size=10, italic=True, color=MUTED)
 
-    footer(s, prs, 6)
+    footer(s, prs, 5)
 
 
 def slide_architecture(prs):
+    """End-to-end engineering architecture diagram — native PPTX shapes.
+
+    Text is guaranteed-accurate (no image-tool re-rendering).
+    """
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    title_bar(s, prs, "How it works", eyebrow="Architecture, in one picture")
+    title_bar(s, prs, "End-to-end architecture",
+              eyebrow="Predictive RPC Estimator")
 
-    # Simple lane diagram
-    y0 = Inches(1.35)
-    lane_h = Inches(1.3)
+    # Local palette additions
+    BLUE_SVC    = RGBColor(0x4E, 0x88, 0xE6)
+    BLUE_DEEP   = RGBColor(0x2A, 0x5F, 0xC3)
+    GREEN_VTX   = RGBColor(0x34, 0xA8, 0x53)
+    TEAL_PIPE   = RGBColor(0x00, 0x97, 0xA7)
+    PURPLE_BQ   = RGBColor(0x7E, 0x57, 0xC2)
+    GREY_BOUND  = RGBColor(0xEC, 0xEF, 0xF4)
+    GREY_BOUND_LINE = RGBColor(0xB8, 0xBF, 0xCC)
+    FLOW_ORANGE = RGBColor(0xE8, 0x7B, 0x1E)
+    FLOW_GREY   = RGBColor(0x5F, 0x6B, 0x7C)
+    PUBSUB_PURP = RGBColor(0xA9, 0x6B, 0xDB)
 
-    # Lane 1: client → scoring api → vertex
-    def node(slide, left, top, w, h, label, sublabel="", color=TEAL, text_color=WHITE):
-        box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, w, h)
-        box.adjustments[0] = 0.15
+    # ── GCP boundary ──────────────────────────────────────────────────
+    bx = Inches(1.3); by = Inches(1.15); bw = Inches(11.4); bh = Inches(5.8)
+    boundary = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, bx, by, bw, bh)
+    boundary.adjustments[0] = 0.02
+    fill(boundary, GREY_BOUND)
+    boundary.line.color.rgb = GREY_BOUND_LINE
+    boundary.line.width = Pt(1.0)
+    # GCP label
+    lab = s.shapes.add_textbox(bx + Inches(0.15), by + Inches(0.05),
+                               Inches(6), Inches(0.35))
+    p = lab.text_frame.paragraphs[0]
+    run(p, "Google Cloud Platform", size=12, bold=True, color=NAVY)
+    run(p, "    europe-west2 (London)", size=11, color=MUTED, italic=True)
+
+    # ── Component box helper ─────────────────────────────────────────
+    def comp(left, top, w, h, label, sublabel, color=BLUE_SVC, text_color=WHITE):
+        box = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, w, h)
+        box.adjustments[0] = 0.12
         fill(box, color)
-        tf = box.text_frame; tf.word_wrap = True
+        tf = box.text_frame
+        tf.margin_left = Inches(0.1); tf.margin_right = Inches(0.1)
+        tf.margin_top = Inches(0.06); tf.margin_bottom = Inches(0.06)
         tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        tf.word_wrap = True
         p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-        run(p, label, size=13, bold=True, color=text_color)
+        run(p, label, size=12, bold=True, color=text_color)
         if sublabel:
             p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
-            run(p2, sublabel, size=9, color=LIGHT if text_color == WHITE else MUTED)
+            run(p2, sublabel, size=9, color=text_color)
+        return box
 
-    def arrow(slide, x1, y1, x2, y2):
-        con = slide.shapes.add_connector(3, x1, y1, x2, y2)  # straight
-        con.line.color.rgb = SLATE
-        con.line.width = Pt(1.5)
+    def small_box(left, top, w, h, label, color=LIGHT, border=RULE, text=NAVY, size=9):
+        box = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, w, h)
+        box.adjustments[0] = 0.18
+        fill(box, color)
+        box.line.color.rgb = border; box.line.width = Pt(0.5)
+        tf = box.text_frame
+        tf.margin_left = Inches(0.06); tf.margin_right = Inches(0.06)
+        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+        run(p, label, size=size, bold=True, color=text)
+        return box
 
-    nw, nh = Inches(1.7), Inches(0.9)
-    row1_y = Inches(1.6)
-    gap = Inches(0.35)
+    def label_text(left, top, w, h, text, size=9, color=SLATE, align=PP_ALIGN.CENTER, italic=False):
+        tb = s.shapes.add_textbox(left, top, w, h)
+        tf = tb.text_frame; tf.word_wrap = True
+        tf.margin_left = Inches(0.02); tf.margin_right = Inches(0.02)
+        tf.margin_top = Inches(0); tf.margin_bottom = Inches(0)
+        p = tf.paragraphs[0]; p.alignment = align
+        run(p, text, size=size, color=color, italic=italic)
+        return tb
 
-    node(s, Inches(0.5), row1_y, nw, nh, "Client app", "browser / server", color=SLATE)
-    node(s, Inches(0.5) + nw + gap, row1_y, nw, nh, "Scoring API",
-         "Cloud Run · Rust", color=TEAL)
-    node(s, Inches(0.5) + 2 * (nw + gap), row1_y, nw, nh, "Vertex AI",
-         "XGBoost regressor", color=NAVY)
-    node(s, Inches(0.5) + 3 * (nw + gap), row1_y, nw, nh, "Pub/Sub",
-         "predictions stream", color=ACCENT, text_color=WHITE)
-    node(s, Inches(0.5) + 4 * (nw + gap), row1_y, nw, nh, "BigQuery",
-         "analytics + drift", color=TEAL)
+    def arrow(x1, y1, x2, y2, color=FLOW_GREY, weight=1.25, dashed=False):
+        con = s.shapes.add_connector(1, x1, y1, x2, y2)
+        con.line.color.rgb = color
+        con.line.width = Pt(weight)
+        if dashed:
+            from pptx.oxml.ns import qn
+            ln = con.line._get_or_add_ln()
+            prstDash = ln.makeelement(qn('a:prstDash'), {'val': 'dash'})
+            ln.append(prstDash)
+        # Add arrowhead end
+        from pptx.oxml.ns import qn
+        ln = con.line._get_or_add_ln()
+        tail = ln.makeelement(qn('a:tailEnd'), {'type': 'triangle', 'w': 'sm', 'h': 'sm'})
+        ln.append(tail)
+        return con
 
-    # arrows between row1 nodes
-    for i in range(4):
-        x1 = Inches(0.5) + (i + 1) * nw + i * gap
-        x2 = x1 + gap
-        y  = row1_y + Emu(int(nh / 2))
-        arrow(s, x1, y, x2, y)
+    # ── External actors ──────────────────────────────────────────────
+    def actor(left, top, label, sub):
+        circ = s.shapes.add_shape(MSO_SHAPE.OVAL, left, top, Inches(0.32), Inches(0.32))
+        fill(circ, SLATE)
+        body = s.shapes.add_shape(MSO_SHAPE.ISOSCELES_TRIANGLE,
+                                  left - Inches(0.05), top + Inches(0.28),
+                                  Inches(0.42), Inches(0.45))
+        fill(body, SLATE)
+        lab = s.shapes.add_textbox(left - Inches(0.4), top + Inches(0.75),
+                                   Inches(1.12), Inches(0.55))
+        tf = lab.text_frame; tf.word_wrap = True
+        p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+        run(p, label, size=9, bold=True, color=SLATE)
+        p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
+        run(p2, sub, size=8, color=MUTED)
 
-    # Row 2 — guardrails caption
-    cap = s.shapes.add_textbox(Inches(0.5), Inches(2.9),
-                               prs.slide_width - Inches(1.0), Inches(0.45))
-    p = cap.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-    run(p, "Each request is wrapped in production safety controls",
-        size=11, italic=True, color=MUTED)
+    def datasource(left, top, label):
+        can = s.shapes.add_shape(MSO_SHAPE.CAN, left, top, Inches(0.4), Inches(0.5))
+        fill(can, MUTED)
+        lab = s.shapes.add_textbox(left - Inches(0.35), top + Inches(0.55),
+                                   Inches(1.1), Inches(0.45))
+        tf = lab.text_frame; tf.word_wrap = True
+        p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+        run(p, label, size=9, bold=True, color=SLATE)
 
-    # Row 3: guardrails
-    guards = [
-        ("Timeouts", "model + BQ budgets"),
-        ("Circuit breaker", "fail fast, recover"),
-        ("Anomaly detection", "null-rate window"),
-        ("Range clamp", "no negative RPC"),
-        ("Explanations", "per-feature SHAP"),
+    actor(Inches(0.15), Inches(2.0), "Client", "Ad bidding systems")
+    actor(Inches(12.65), Inches(2.0), "Executive", "stakeholders")
+    datasource(Inches(0.2), Inches(5.7), "Sales ledger\ndata source")
+
+    # ── Top row: Scoring · Vertex · Dashboard ────────────────────────
+    # Scoring Service with guardrails sub-block
+    scoring = comp(Inches(1.5), Inches(1.55), Inches(3.0), Inches(1.65),
+                   "Scoring Service  ·  scoring-api", "Rust 1.89  ·  Cloud Run",
+                   color=BLUE_SVC)
+    # Guardrails inner panel
+    guard = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
+                               Inches(1.65), Inches(2.45), Inches(2.7), Inches(0.7))
+    guard.adjustments[0] = 0.15
+    fill(guard, RGBColor(0xE8, 0xF0, 0xFE))
+    guard.line.fill.background()
+    tf = guard.text_frame
+    tf.margin_left = Inches(0.08); tf.margin_right = Inches(0.08)
+    tf.margin_top = Inches(0.04); tf.margin_bottom = Inches(0.04)
+    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+    run(p, "Safety guardrails", size=9, bold=True, color=BLUE_DEEP)
+    p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
+    run(p2, "Bounds  ·  clamp  ·  timeouts  ·  anomaly  ·  breaker  ·  kill-switch",
+        size=8, color=BLUE_DEEP)
+
+    vertex = comp(Inches(5.0), Inches(1.55), Inches(2.5), Inches(1.0),
+                  "Vertex AI Endpoint", "XGBoost regressor  ·  rpc-estimator@1",
+                  color=GREEN_VTX)
+
+    dash = comp(Inches(9.55), Inches(1.55), Inches(2.7), Inches(1.0),
+                "Dashboard UI", "TypeScript / React / nginx  ·  Cloud Run",
+                color=BLUE_SVC)
+
+    # ── Bounds Calibration + Secret Manager ──────────────────────────
+    bounds = comp(Inches(1.5), Inches(3.5), Inches(2.4), Inches(0.85),
+                  "Bounds Calibration", "Rust  ·  Cloud Run job",
+                  color=BLUE_SVC)
+    secret = small_box(Inches(4.05), Inches(2.65), Inches(1.6), Inches(0.55),
+                       "Secret Manager / Config", color=WHITE, border=MUTED, text=SLATE, size=9)
+
+    # ── BigQuery warehouse ──────────────────────────────────────────
+    bq = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
+                            Inches(5.0), Inches(3.25), Inches(2.5), Inches(1.5))
+    bq.adjustments[0] = 0.08
+    fill(bq, PURPLE_BQ)
+    tf = bq.text_frame; tf.word_wrap = True
+    tf.margin_left = Inches(0.1); tf.margin_right = Inches(0.1)
+    tf.margin_top = Inches(0.08)
+    p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+    run(p, "BigQuery", size=12, bold=True, color=WHITE)
+    p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
+    run(p2, "Data warehouse", size=9, color=WHITE)
+    p3 = tf.add_paragraph(); p3.alignment = PP_ALIGN.CENTER
+    p3.space_before = Pt(6)
+    run(p3, "cm360_clicks  ·  sales_ledger", size=8, italic=True, color=WHITE)
+    p4 = tf.add_paragraph(); p4.alignment = PP_ALIGN.CENTER
+    run(p4, "rpc_predictions", size=8, italic=True, color=WHITE)
+    p5 = tf.add_paragraph(); p5.alignment = PP_ALIGN.CENTER
+    run(p5, "predictions_vs_revenue", size=8, italic=True, color=WHITE)
+
+    # ── Reconciliation + ML Pipeline + Cloud Storage ────────────────
+    recon = comp(Inches(9.55), Inches(3.05), Inches(2.7), Inches(0.85),
+                 "Reconciliation Service", "Python FastAPI  ·  Cloud Run",
+                 color=BLUE_SVC)
+
+    mlp = comp(Inches(8.0), Inches(4.55), Inches(2.6), Inches(0.9),
+               "ML Ops Pipeline  ·  ml-pipeline", "Python 3.12  ·  Vertex AI Pipelines",
+               color=TEAL_PIPE)
+
+    cs = s.shapes.add_shape(MSO_SHAPE.CAN, Inches(11.0), Inches(4.55),
+                            Inches(0.55), Inches(0.9))
+    fill(cs, MUTED)
+    cslab = s.shapes.add_textbox(Inches(10.8), Inches(5.5), Inches(0.95), Inches(0.3))
+    pcs = cslab.text_frame.paragraphs[0]; pcs.alignment = PP_ALIGN.CENTER
+    run(pcs, "Cloud Storage", size=8, bold=True, color=SLATE)
+
+    # ── Pub/Sub topics ───────────────────────────────────────────────
+    def pubsub(left, top, name):
+        box = s.shapes.add_shape(MSO_SHAPE.HEXAGON, left, top, Inches(1.5), Inches(0.45))
+        fill(box, PUBSUB_PURP)
+        tf = box.text_frame
+        tf.margin_left = Inches(0.04); tf.margin_right = Inches(0.04)
+        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+        run(p, "Pub/Sub", size=8, bold=True, color=WHITE)
+        # subtitle under the hex
+        sub = s.shapes.add_textbox(left, top + Inches(0.46), Inches(1.5), Inches(0.32))
+        ps = sub.text_frame.paragraphs[0]; ps.alignment = PP_ALIGN.CENTER
+        run(ps, name, size=8, color=SLATE)
+
+    pubsub(Inches(1.5), Inches(4.55), "rpc-clicks-staging")
+    pubsub(Inches(3.3), Inches(4.55), "rpc-predictions-staging")
+    pubsub(Inches(5.4), Inches(5.0), "rpc-anomaly-staging")
+
+    # ── Resilience: Breaker · Activation ─────────────────────────────
+    breaker = comp(Inches(5.0), Inches(5.55), Inches(2.5), Inches(0.85),
+                   "Breaker Automation", "Python  ·  Cloud Run / Functions",
+                   color=BLUE_SVC)
+
+    activ = comp(Inches(9.55), Inches(5.55), Inches(2.7), Inches(0.85),
+                 "Activation Service", "Python 3.12  ·  Cloud Run",
+                 color=BLUE_SVC)
+
+    # External sinks (right edge)
+    for i, sink in enumerate(["SA360", "SSGTM", "OCI"]):
+        lab = s.shapes.add_textbox(Inches(12.6), Inches(5.55) + Inches(i * 0.28),
+                                   Inches(0.7), Inches(0.25))
+        p = lab.text_frame.paragraphs[0]
+        run(p, "→ " + sink, size=9, bold=True, color=SLATE)
+
+    # ── CI/CD strip (bottom of GCP box) ──────────────────────────────
+    cicd_y = Inches(6.55)
+    cicd_items = ["GitHub", "WIF", "Cloud Build", "Artifact Registry", "Cloud Run"]
+    cicd_w = Inches(1.4); cicd_gap = Inches(0.05)
+    cicd_x0 = bx + bw - (cicd_w * 5 + cicd_gap * 4) - Inches(0.15)
+    for i, name in enumerate(cicd_items):
+        x = cicd_x0 + (cicd_w + cicd_gap) * i
+        item = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, cicd_y,
+                                  cicd_w, Inches(0.3))
+        item.adjustments[0] = 0.3
+        fill(item, WHITE)
+        item.line.color.rgb = RULE; item.line.width = Pt(0.5)
+        tf = item.text_frame
+        tf.margin_left = Inches(0.04); tf.margin_right = Inches(0.04)
+        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+        run(p, name, size=8, bold=True, color=SLATE)
+        if i < len(cicd_items) - 1:
+            arrow(x + cicd_w, cicd_y + Inches(0.15),
+                  x + cicd_w + cicd_gap, cicd_y + Inches(0.15),
+                  color=MUTED, weight=0.75)
+    # CI/CD label
+    cilab = s.shapes.add_textbox(cicd_x0, cicd_y - Inches(0.25),
+                                 Inches(2.0), Inches(0.22))
+    p = cilab.text_frame.paragraphs[0]
+    run(p, "Continuous delivery", size=8, bold=True, italic=True, color=MUTED)
+
+    # ── Arrows: hot path ─────────────────────────────────────────────
+    # Client → Scoring (HTTP)
+    arrow(Inches(0.75), Inches(2.18), Inches(1.5), Inches(2.18), color=FLOW_GREY, weight=1.5)
+    label_text(Inches(0.55), Inches(1.85), Inches(1.05), Inches(0.3),
+               "HTTPS click", size=8, italic=True, color=MUTED)
+    # Scoring ⇄ Vertex
+    arrow(Inches(4.5), Inches(1.85), Inches(5.0), Inches(1.85),
+          color=FLOW_GREY, weight=1.5)
+    label_text(Inches(4.5), Inches(1.62), Inches(0.5), Inches(0.22),
+               "predict", size=7, italic=True, color=MUTED)
+    arrow(Inches(5.0), Inches(2.25), Inches(4.5), Inches(2.25),
+          color=FLOW_ORANGE, weight=1.5)
+    label_text(Inches(4.5), Inches(2.28), Inches(0.5), Inches(0.22),
+               "rpc", size=7, italic=True, color=FLOW_ORANGE)
+    # Scoring → Pub/Sub predictions
+    arrow(Inches(3.5), Inches(3.2), Inches(4.05), Inches(4.55),
+          color=FLOW_ORANGE, weight=1.25)
+    # Pub/Sub predictions → BigQuery
+    arrow(Inches(4.55), Inches(4.78), Inches(5.5), Inches(4.75),
+          color=FLOW_ORANGE, weight=1.25)
+    # Scoring → Pub/Sub anomaly (right)
+    arrow(Inches(4.5), Inches(2.95), Inches(6.0), Inches(5.0),
+          color=FLOW_ORANGE, weight=1.0)
+    # Client → Pub/Sub clicks (ingestion)
+    arrow(Inches(0.75), Inches(2.35), Inches(2.0), Inches(4.55),
+          color=PUBSUB_PURP, weight=1.0)
+    # Pub/Sub clicks → BigQuery
+    arrow(Inches(2.25), Inches(5.0), Inches(5.0), Inches(4.0),
+          color=PUBSUB_PURP, weight=1.0)
+    # Sales ledger → BigQuery
+    arrow(Inches(0.6), Inches(5.95), Inches(5.0), Inches(4.55),
+          color=FLOW_ORANGE, weight=1.0)
+    # BigQuery → ML Pipeline (training)
+    arrow(Inches(7.5), Inches(4.4), Inches(8.5), Inches(4.55),
+          color=FLOW_GREY, weight=1.25)
+    label_text(Inches(7.55), Inches(4.18), Inches(1.0), Inches(0.22),
+               "training data", size=7, italic=True, color=MUTED)
+    # ML Pipeline → Cloud Storage
+    arrow(Inches(10.6), Inches(5.0), Inches(11.0), Inches(5.0),
+          color=FLOW_GREY, weight=1.0)
+    # ML Pipeline → Vertex (deploy)
+    arrow(Inches(9.0), Inches(4.55), Inches(6.25), Inches(2.55),
+          color=FLOW_GREY, weight=1.0, dashed=True)
+    label_text(Inches(8.2), Inches(3.5), Inches(1.6), Inches(0.22),
+               "deploy / retrain", size=7, italic=True, color=MUTED)
+    # BigQuery → Reconciliation (read predictions_vs_revenue)
+    arrow(Inches(7.5), Inches(3.5), Inches(9.55), Inches(3.5),
+          color=FLOW_ORANGE, weight=1.25)
+    label_text(Inches(7.6), Inches(3.22), Inches(1.95), Inches(0.22),
+               "read predictions_vs_revenue", size=7, italic=True, color=FLOW_ORANGE)
+    # Reconciliation → Dashboard (api)
+    arrow(Inches(10.9), Inches(3.05), Inches(10.9), Inches(2.55),
+          color=FLOW_GREY, weight=1.25)
+    label_text(Inches(11.05), Inches(2.65), Inches(1.2), Inches(0.22),
+               "HTTPS /api", size=7, italic=True, color=MUTED)
+    # Executive → Dashboard
+    arrow(Inches(12.65), Inches(2.05), Inches(12.25), Inches(2.05),
+          color=FLOW_GREY, weight=1.25)
+    # Breaker → Secret Manager → Scoring
+    arrow(Inches(5.0), Inches(5.85), Inches(4.85), Inches(3.2),
+          color=FLOW_GREY, weight=1.0)
+    arrow(Inches(4.85), Inches(2.65), Inches(4.5), Inches(2.65),
+          color=FLOW_GREY, weight=1.0)
+    label_text(Inches(3.95), Inches(5.2), Inches(2.0), Inches(0.22),
+               "flip kill-switch", size=7, italic=True, color=MUTED)
+    # Activation → external sinks
+    arrow(Inches(12.25), Inches(5.97), Inches(12.6), Inches(5.97),
+          color=FLOW_GREY, weight=1.0)
+    # Bounds Calibration → Scoring
+    arrow(Inches(2.7), Inches(3.5), Inches(2.7), Inches(3.2),
+          color=FLOW_GREY, weight=1.0)
+    label_text(Inches(2.75), Inches(3.25), Inches(1.5), Inches(0.22),
+               "segment bounds", size=7, italic=True, color=MUTED)
+
+    # ── Legend ───────────────────────────────────────────────────────
+    legend_y = Inches(6.95)
+    legend = [
+        ("Service", BLUE_SVC),
+        ("ML/AI runtime", GREEN_VTX),
+        ("ML pipeline", TEAL_PIPE),
+        ("Data warehouse", PURPLE_BQ),
+        ("Pub/Sub", PUBSUB_PURP),
+        ("Data flow", FLOW_ORANGE),
     ]
-    gw = Inches(1.7); gy = Inches(3.45); gh = Inches(0.9)
-    gap2 = Inches(0.15)
-    for i, (lbl, sub) in enumerate(guards):
-        node(s, Inches(0.5) + i * (gw + gap2), gy, gw, gh, lbl, sub,
-             color=LIGHT, text_color=NAVY)
+    lx = Inches(0.5)
+    for label_t, col in legend:
+        dot = s.shapes.add_shape(MSO_SHAPE.OVAL, lx, legend_y + Inches(0.02),
+                                 Inches(0.12), Inches(0.12))
+        fill(dot, col)
+        tb = s.shapes.add_textbox(lx + Inches(0.18), legend_y - Inches(0.02),
+                                  Inches(1.6), Inches(0.22))
+        p = tb.text_frame.paragraphs[0]
+        run(p, label_t, size=8, color=SLATE)
+        lx += Inches(1.55)
 
-    # Bottom note
-    note = s.shapes.add_textbox(Inches(0.5), Inches(4.7),
-                                prs.slide_width - Inches(1.0), Inches(1.2))
-    tf = note.text_frame; tf.word_wrap = True
-    for txt in [
-        ("h", "Why this shape"),
-        ("b", "Stateless API tier scales horizontally with traffic — pay only for what you use."),
-        ("b", "Vertex AI hosts the model, so retraining and versioning never touch the API."),
-        ("b", "Every prediction is captured in BigQuery — same dataset your analysts already use."),
-    ]:
-        kind, t = txt
-        p = tf.add_paragraph() if tf.text else tf.paragraphs[0]
-        if kind == "h":
-            run(p, t, size=14, bold=True, color=TEAL)
-            p.space_after = Pt(3)
-        else:
-            run(p, "•  ", size=12, bold=True, color=ACCENT)
-            run(p, t, size=12, color=SLATE)
-    footer(s, prs, 5)
+    footer(s, prs, 6)
 
 
 def slide_demo_script(prs):
