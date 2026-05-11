@@ -19,6 +19,11 @@ scoring_api_min_instances = 1
 scoring_api_max_instances = 10
 scoring_api_concurrency   = 80
 
+# Demo-day warmth: avoid Cloud Run cold-starts on the executive dashboard path.
+# Cost: ~£1.50/day combined. Drop both to 0 after handover.
+reconciliation_min_instances = 1
+dashboard_min_instances      = 1
+
 # Threshold matches measured p95 + headroom (Phase 1.5 load profile 2026-04-28).
 scoring_api_p95_threshold_ms = 1500
 

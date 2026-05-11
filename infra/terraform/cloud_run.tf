@@ -20,6 +20,11 @@ variable "image_mock_vertex" {
   type    = string
   default = ""
 }
+variable "image_dashboard" {
+  description = "Container image for the executive reconciliation dashboard (React + nginx)."
+  type        = string
+  default     = ""
+}
 
 locals {
   otel_endpoint = "https://telemetry.googleapis.com:443"
@@ -117,6 +122,9 @@ resource "google_cloud_run_v2_service" "reconciliation" {
   location = var.region
   template {
     service_account = google_service_account.scoring_api.email
+    scaling {
+      min_instance_count = var.reconciliation_min_instances
+    }
     containers {
       image = var.image_reconciliation
       ports {
@@ -132,6 +140,51 @@ resource "google_cloud_run_v2_service" "reconciliation" {
       }
     }
   }
+}
+
+# Executive dashboard: nginx serving the Vite-built React app, reverse-proxying
+# /api to the reconciliation service for a single browser origin.
+resource "google_cloud_run_v2_service" "dashboard" {
+  count    = var.image_dashboard == "" ? 0 : 1
+  name     = "dashboard-${var.env}"
+  location = var.region
+  template {
+    service_account = google_service_account.scoring_api.email
+    scaling {
+      min_instance_count = var.dashboard_min_instances
+      max_instance_count = 3
+    }
+    containers {
+      image = var.image_dashboard
+      ports {
+        container_port = 8080
+      }
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "256Mi"
+        }
+      }
+      env {
+        name  = "RECONCILIATION_API_HOST"
+        value = replace(google_cloud_run_v2_service.reconciliation.uri, "https://", "")
+      }
+    }
+  }
+}
+
+resource "google_cloud_run_v2_service_iam_member" "dashboard_public" {
+  count    = var.image_dashboard == "" ? 0 : 1
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.dashboard[0].name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+output "dashboard_url" {
+  description = "Public URL of the deployed dashboard service (empty if image_dashboard is unset)."
+  value       = var.image_dashboard == "" ? "" : google_cloud_run_v2_service.dashboard[0].uri
 }
 
 # Activation: push-based Pub/Sub subscriber → Cloud Run job-style service.

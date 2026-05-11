@@ -55,3 +55,15 @@ variable "scoring_api_p95_threshold_ms" {
   type        = number
   default     = 1500
 }
+
+variable "reconciliation_min_instances" {
+  description = "Cloud Run min instances for reconciliation. Set to 1 in staging to eliminate cold-start during the dashboard demo."
+  type        = number
+  default     = 0
+}
+
+variable "dashboard_min_instances" {
+  description = "Cloud Run min instances for dashboard. Set to 1 in staging to eliminate cold-start during the executive demo."
+  type        = number
+  default     = 0
+}
