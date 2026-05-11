@@ -374,6 +374,30 @@ def slide_architecture(prs):
             left = canvas_left + (canvas_width - w) // 2
             top  = canvas_top  + (canvas_height - h) // 2
             s.shapes.add_picture(str(img_path), left, top, width=w, height=h)
+
+            # Typo overlay: 'Calbration' → 'Calibration'.
+            # Pixel rect in the 1408×768 source image covering the
+            # entire "Bounds Calbration Job" label line.
+            def px_to_emu(px, axis_size_emu, axis_size_px):
+                return int(px / axis_size_px * axis_size_emu)
+            OV_X, OV_Y, OV_W, OV_H = 180, 343, 175, 26
+            ov_left = left + px_to_emu(OV_X, w, iw)
+            ov_top  = top  + px_to_emu(OV_Y, h, ih)
+            ov_w    = px_to_emu(OV_W, w, iw)
+            ov_h    = px_to_emu(OV_H, h, ih)
+            # Blue cover matching the source box fill (sampled from the image).
+            BOX_BLUE = RGBColor(0x4E, 0x82, 0xD5)
+            cover = s.shapes.add_shape(MSO_SHAPE.RECTANGLE,
+                                       ov_left, ov_top, ov_w, ov_h)
+            fill(cover, BOX_BLUE)
+            tf = cover.text_frame
+            tf.margin_left = Pt(0); tf.margin_right = Pt(0)
+            tf.margin_top = Pt(0); tf.margin_bottom = Pt(0)
+            tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+            p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+            r = p.add_run(); r.text = "Bounds Calibration Job"
+            r.font.size = Pt(10); r.font.bold = True
+            r.font.color.rgb = WHITE; r.font.name = "Calibri"
         except Exception:
             s.shapes.add_picture(str(img_path), canvas_left, canvas_top,
                                  width=canvas_width)
