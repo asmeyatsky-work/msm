@@ -12,7 +12,7 @@ const rowSchema = z.object({
 });
 
 export class HttpReconciliationGateway implements ReconciliationGateway {
-  constructor(private readonly baseUrl: string, private readonly timeoutMs = 3000) {}
+  constructor(private readonly baseUrl: string, private readonly timeoutMs = 15000) {}
 
   async fetchWindow(startMs: number, endMs: number): Promise<ReconciliationRow[]> {
     // §3.2: every external call has an explicit timeout.

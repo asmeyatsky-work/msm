@@ -21,6 +21,7 @@ type Status = { kind: "loading" } | { kind: "ready" } | { kind: "error"; msg: st
 export function App() {
   const [rows, setRows] = useState<ReconciliationRow[]>([]);
   const [status, setStatus] = useState<Status>({ kind: "loading" });
+  const [attempt, setAttempt] = useState(0);
   const [range] = useState(() => {
     const end = Date.now();
     return { start: end - WINDOW_DAYS * DAY_MS, end };
@@ -37,10 +38,13 @@ export function App() {
       })
       .catch((e) => {
         if (cancelled) return;
-        setStatus({ kind: "error", msg: e?.message ?? "Failed to load." });
+        const msg = e?.name === "AbortError"
+          ? "Request timed out — the service may be warming up. Retry in a moment."
+          : (e?.message ?? "Failed to load.");
+        setStatus({ kind: "error", msg });
       });
     return () => { cancelled = true; };
-  }, [range.start, range.end]);
+  }, [range.start, range.end, attempt]);
 
   const k = useMemo(() => computeKpis(rows), [rows]);
   const daily = useMemo(() => groupByDay(rows, range.start, range.end), [rows, range]);
@@ -76,7 +80,19 @@ export function App() {
 
       <main className="content">
         {status.kind === "error" && (
-          <div className="errorbox">Failed to load reconciliation data: {status.msg}</div>
+          <div className="errorbox" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span>Failed to load reconciliation data: {status.msg}</span>
+            <button
+              onClick={() => setAttempt((n) => n + 1)}
+              style={{
+                marginLeft: "auto",
+                background: "var(--red)", color: "#fff",
+                border: 0, borderRadius: 6,
+                padding: "6px 14px", fontSize: 12, fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >Retry</button>
+          </div>
         )}
 
         <section className="kpis" aria-label="Key performance indicators">
