@@ -35,6 +35,7 @@ jobs:
       image_breaker:        ${{ steps.meta.outputs.breaker }}
       image_ml_pipeline:    ${{ steps.meta.outputs.ml_pipeline }}
       image_mock_vertex:    ${{ steps.meta.outputs.mock_vertex }}
+      image_dashboard:      ${{ steps.meta.outputs.dashboard }}
     steps:
       - uses: actions/checkout@v4
       - id: sha
@@ -62,6 +63,7 @@ jobs:
           echo "breaker=${base}/breaker-automation:${SHA}"    >> "$GITHUB_OUTPUT"
           echo "ml_pipeline=${base}/ml-pipeline:${SHA}"       >> "$GITHUB_OUTPUT"
           echo "mock_vertex=${base}/mock-vertex:${SHA}"       >> "$GITHUB_OUTPUT"
+          echo "dashboard=${base}/dashboard:${SHA}"           >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -94,6 +96,10 @@ jobs:
         uses: docker/build-push-action@v6
         with: { context: services/mock-vertex, push: true, tags: "${{ steps.meta.outputs.mock_vertex }}" }
 
+      - name: build dashboard
+        uses: docker/build-push-action@v6
+        with: { context: dashboard, push: true, tags: "${{ steps.meta.outputs.dashboard }}" }
+
   deploy-staging:
     needs: build-push
     # Staging runs on: tag push, push to main, or manual dispatch (any env).
@@ -105,23 +111,69 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account:            ${{ secrets.GCP_CI_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
       - uses: hashicorp/setup-terraform@v3
+      - name: terraform init
+        working-directory: infra/terraform
+        run: terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
+
+      # The dashboard service was first deployed via gcloud (pre-Terraform).
+      # Import it on the first CD run that knows about it; idempotent thereafter.
+      - name: import pre-existing dashboard (one-time, idempotent)
+        working-directory: infra/terraform
+        env:
+          PROJECT: ${{ vars.GCP_PROJECT }}
+          REGION: europe-west2
+          ENV: staging
+        run: |
+          set -e
+          svc_addr='google_cloud_run_v2_service.dashboard[0]'
+          iam_addr='google_cloud_run_v2_service_iam_member.dashboard_public[0]'
+          svc_id="projects/${PROJECT}/locations/${REGION}/services/dashboard-${ENV}"
+          iam_id="${svc_id} roles/run.invoker allUsers"
+          if ! terraform state list | grep -qx "${svc_addr}"; then
+            echo "Importing ${svc_addr} ..."
+            terraform import \
+              -var-file=envs/staging.tfvars \
+              -var "image_scoring_api=${{ needs.build-push.outputs.image_scoring_api }}" \
+              -var "image_reconciliation=${{ needs.build-push.outputs.image_reconciliation }}" \
+              -var "image_activation=${{ needs.build-push.outputs.image_activation }}" \
+              -var "image_breaker=${{ needs.build-push.outputs.image_breaker }}" \
+              -var "image_ml_pipeline=${{ needs.build-push.outputs.image_ml_pipeline }}" \
+              -var "image_mock_vertex=${{ needs.build-push.outputs.image_mock_vertex }}" \
+              -var "image_dashboard=${{ needs.build-push.outputs.image_dashboard }}" \
+              -var "project_id=${PROJECT}" -var "env=${ENV}" -var "region=${REGION}" \
+              "${svc_addr}" "${svc_id}" || echo "import already done or service missing"
+          fi
+          if ! terraform state list | grep -qx "${iam_addr}"; then
+            echo "Importing ${iam_addr} ..."
+            terraform import \
+              -var-file=envs/staging.tfvars \
+              -var "image_scoring_api=${{ needs.build-push.outputs.image_scoring_api }}" \
+              -var "image_reconciliation=${{ needs.build-push.outputs.image_reconciliation }}" \
+              -var "image_activation=${{ needs.build-push.outputs.image_activation }}" \
+              -var "image_breaker=${{ needs.build-push.outputs.image_breaker }}" \
+              -var "image_ml_pipeline=${{ needs.build-push.outputs.image_ml_pipeline }}" \
+              -var "image_mock_vertex=${{ needs.build-push.outputs.image_mock_vertex }}" \
+              -var "image_dashboard=${{ needs.build-push.outputs.image_dashboard }}" \
+              -var "project_id=${PROJECT}" -var "env=${ENV}" -var "region=${REGION}" \
+              "${iam_addr}" "${iam_id}" || echo "import already done or service missing"
+          fi
+
       - name: terraform apply
         working-directory: infra/terraform
         env:
-          TF_VAR_project_id:          ${{ vars.GCP_PROJECT }}
-          TF_VAR_region:              europe-west2
-          TF_VAR_env:                 staging
+          TF_VAR_project_id:           ${{ vars.GCP_PROJECT }}
+          TF_VAR_region:               europe-west2
+          TF_VAR_env:                  staging
           TF_VAR_image_scoring_api:    ${{ needs.build-push.outputs.image_scoring_api }}
           TF_VAR_image_reconciliation: ${{ needs.build-push.outputs.image_reconciliation }}
           TF_VAR_image_activation:     ${{ needs.build-push.outputs.image_activation }}
           TF_VAR_image_breaker:        ${{ needs.build-push.outputs.image_breaker }}
           TF_VAR_image_ml_pipeline:    ${{ needs.build-push.outputs.image_ml_pipeline }}
           TF_VAR_image_mock_vertex:    ${{ needs.build-push.outputs.image_mock_vertex }}
+          TF_VAR_image_dashboard:      ${{ needs.build-push.outputs.image_dashboard }}
         run: |
-          # TF_VAR_region is set in job env. Bootstrap created the bucket
-          # with a region prefix; access requires a quota project.
-          terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
           terraform apply -auto-approve -lock-timeout=5m -var-file=envs/staging.tfvars
 
       - name: post-deploy smoke
@@ -130,6 +182,12 @@ jobs:
           URL=$(terraform output -raw scoring_api_url)
           echo "scoring-api: $URL"
           bash ../../ops/smoke.sh "$URL"
+          DASH=$(terraform output -raw dashboard_url || echo "")
+          if [ -n "$DASH" ]; then
+            echo "dashboard:  $DASH"
+            curl -fsS -o /dev/null "$DASH/" && echo "  / ok"
+            curl -fsS -o /dev/null "$DASH/healthz" && echo "  /healthz ok"
+          fi
 
   deploy-prod:
     needs: [build-push, deploy-staging]
@@ -149,15 +207,16 @@ jobs:
       - name: terraform apply prod
         working-directory: infra/terraform
         env:
-          TF_VAR_project_id:          ${{ vars.GCP_PROJECT_PROD }}
-          TF_VAR_region:              europe-west2
-          TF_VAR_env:                 prod
+          TF_VAR_project_id:           ${{ vars.GCP_PROJECT_PROD }}
+          TF_VAR_region:               europe-west2
+          TF_VAR_env:                  prod
           TF_VAR_image_scoring_api:    ${{ needs.build-push.outputs.image_scoring_api }}
           TF_VAR_image_reconciliation: ${{ needs.build-push.outputs.image_reconciliation }}
           TF_VAR_image_activation:     ${{ needs.build-push.outputs.image_activation }}
           TF_VAR_image_breaker:        ${{ needs.build-push.outputs.image_breaker }}
           TF_VAR_image_ml_pipeline:    ${{ needs.build-push.outputs.image_ml_pipeline }}
           TF_VAR_image_mock_vertex:    ${{ needs.build-push.outputs.image_mock_vertex }}
+          TF_VAR_image_dashboard:      ${{ needs.build-push.outputs.image_dashboard }}
         run: |
           terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET_PROD }}"
           terraform apply -auto-approve -lock-timeout=5m -var-file=envs/prod.tfvars
