@@ -21,7 +21,7 @@ Authoritative documents:
 | ML Ops            | `services/ml-pipeline`         | Python 3.12    | Vertex AI Pipelines    | Training, feature engineering, model registry, retrain. |
 | Activation        | `services/activation`          | Python 3.12    | Cloud Run              | Bridge to SA360 / SSGTM / OCI. |
 | Reconciliation    | `services/reconciliation`      | Python 3.12 (FastAPI) | Cloud Run       | Reads `predictions_vs_revenue`; serves the dashboard API. |
-| Reconciliation    | `dashboard/`                   | TypeScript + React (Vite) + nginx | Cloud Run | Executive dashboard; reverse-proxies `/api` to reconciliation. |
+| Reconciliation    | `dashboard/`                   | TypeScript + React (Vite) + nginx | Cloud Run | Executive dashboard with interactive live-prediction panel and SHAP attribution chart. Reverse-proxies `/api` to reconciliation and `/score` + `/explain` to scoring-api so the browser has a single origin. |
 | Resilience        | `services/breaker-automation`  | Python 3.12    | Cloud Run / functions  | Consumes anomaly events, flips the circuit-breaker config. |
 | Testing fixtures  | `services/mock-vertex`         | Python         | retired (replaced by real Vertex endpoint) | Historical mock; kept for local contract tests. |
 
@@ -42,6 +42,13 @@ Client → scoring-api (Cloud Run)
                                                   ↓
                             reconciliation API → dashboard (UI)
 ```
+
+The dashboard also offers an **interactive live-prediction panel**: an executive
+fills in eight click attributes (device, country, hour, search intent, trust
+score, auction competition, rolling earnings, repeat-visitor count), the browser
+calls `/score` and `/explain` (proxied to scoring-api), and the UI animates the
+backend pipeline step-by-step — validate, guardrails, Vertex AI call, BigQuery
+stream, SHAP explanation — with live elapsed milliseconds at each step.
 
 ## Layer direction (Architectural Rule §2)
 
@@ -91,6 +98,19 @@ Implemented in `services/scoring-api/crates/domain` and configured via Cloud Run
 - `activation-staging@msm-rpc.iam.gserviceaccount.com` — activation.
 - `breaker-automation-staging@msm-rpc.iam.gserviceaccount.com` — breaker, plus `secretmanager.secretVersionAdder`.
 - `ci-deployer-staging@msm-rpc.iam.gserviceaccount.com` — assumed by GitHub Actions via WIF.
+
+### Staging scaling
+
+Demo-day warmth is captured in `infra/terraform/envs/staging.tfvars`:
+
+| Service | min_instances | Why |
+|---|---|---|
+| `scoring-api-staging`     | 1 | hot path; CPU-always-allocated for cold-start p99 |
+| `reconciliation-staging`  | 1 | first dashboard load must not cold-start |
+| `dashboard-staging`       | 1 | demo browser must not see a cold tab |
+
+Combined incremental cost ≈ £1.50/day for the dashboard + reconciliation pair
+(scoring-api was already at min=1). Drop both back to 0 after handover.
 
 ### Production
 
@@ -165,7 +185,9 @@ Raw results in `ops/perf/`.
 
 ```
 # Dashboard
-cd dashboard && npm ci && npm run dev    # localhost:5173, proxies /api → reconciliation-staging
+cd dashboard && npm ci && npm run dev    # localhost:5173
+                                         #   /api → reconciliation-staging
+                                         #   /score, /explain → scoring-api-staging
 
 # Scoring API
 cd services/scoring-api && cargo run -p presentation
