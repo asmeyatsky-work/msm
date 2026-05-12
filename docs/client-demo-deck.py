@@ -192,11 +192,11 @@ def slide_exec_summary(prs):
     title_bar(s, prs, "Executive summary", eyebrow="Where we are today")
     body_box(s, prs, [
         ("h", "A production-grade revenue forecasting service is operational."),
-        ("p", "We have built and deployed an end-to-end machine-learning service that predicts revenue-per-click in real time, with the engineering controls required to run it safely in production."),
+        ("p", "We have built and deployed an end-to-end machine-learning service that predicts revenue-per-click in real time, with the engineering controls required to run it safely in production. You can run the live model yourself in today's demo."),
         ("h", "Three things to take away today"),
-        ("b", "Working software — a live API on Google Cloud is serving predictions right now, with measured p95 latency under one second."),
-        ("b", "Production engineering — circuit breakers, drift monitoring, explainability, alerting, runbooks, and a tested rollback path are all in place."),
-        ("b", "A clear path to your data — the platform is ready to ingest real click and sales-ledger feeds; the model retrains and canary-deploys without downtime."),
+        ("b", "Working software you can touch — a browser-based dashboard fronts the live model on Google Cloud, with measured p95 latency under one second."),
+        ("b", "Explainable by default — every prediction returns per-feature attributions, rendered alongside the price so finance and compliance can audit any decision."),
+        ("b", "Production engineering — circuit breakers, drift monitoring, alerting, runbooks, and a tested rollback path are all in place; a clear path to your real data follows in eight weeks."),
     ], font_size=14)
     footer(s, prs, 2)
 
@@ -220,15 +220,16 @@ def slide_solution(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     title_bar(s, prs, "Solution overview", eyebrow="What we have built")
     body_box(s, prs, [
-        ("h", "A managed prediction service on Google Cloud."),
-        ("b", "REST API — POST a click context, receive an RPC estimate in under a second."),
-        ("b", "Explainability — every prediction can return per-feature attributions so analysts can see why the model said what it said."),
-        ("b", "Streaming ingestion — predictions land in BigQuery for analytics, reconciliation, and downstream activation."),
-        ("b", "Safety net — anomaly detection, automatic circuit-breaker, negative-prediction guards, configurable timeouts."),
+        ("h", "A managed prediction service on Google Cloud, with a browser UI for non-technical users."),
+        ("b", "Executive dashboard — KPIs, daily forecast-vs-reality charts, residual distribution, and a live model-health panel, all in business language."),
+        ("b", "Interactive prediction — describe a click in eight plain-English fields, press Predict, watch the pipeline execute step-by-step in real time."),
+        ("b", "Explainable AI — every prediction returns per-feature attributions, rendered as horizontal bars so anyone can see why the model said what it said."),
+        ("b", "REST API — the same predictions are available programmatically for SA360, SSGTM and downstream activation."),
+        ("b", "Safety net — anomaly detection, automatic circuit-breaker, negative-prediction guards, configurable timeouts, kill-switch flag."),
         ("b", "One-command deploys — every change ships through CI with a tested rollback to the prior model version."),
         ("h", " "),
         ("mute", "All components run in Google Cloud (europe-west2, London) on managed services — Cloud Run, Vertex AI, BigQuery, Pub/Sub — so there is no infrastructure for the client team to operate."),
-    ], font_size=14)
+    ], font_size=13)
     footer(s, prs, 4)
 
 
@@ -427,15 +428,16 @@ def slide_demo_script(prs):
     title_bar(s, prs, "Live demo — what you will see",
               eyebrow="Five minutes, three screens")
     body_box(s, prs, [
-        ("h", "1.  The reconciliation dashboard"),
-        ("p", "We open the live dashboard. It shows the last seven days of predictions paired with realized revenue from the sales ledger — predicted RPC, realized RPC, residual, and which model branch served each click."),
-        ("h", "2.  A prediction in flight"),
-        ("p", "We send a sample click context to the live scoring API and receive an RPC estimate, end-to-end, in under a second. The same input is then sent to the explain path to show per-feature attributions."),
-        ("h", "3.  The safety net in action"),
-        ("p", "We send a deliberately malformed payload. The service rejects it cleanly, the circuit-breaker counters tick, and the request never reaches the model. No degradation visible to clean traffic."),
-        ("mute", f"Dashboard  ·  {DEMO_URL}"),
-        ("mute", f"Scoring API  ·  {API_URL}"),
-    ], font_size=14)
+        ("h", "1.  The dashboard, in business language"),
+        ("p", "We open the live dashboard. KPIs in pounds and percentages explain how much we earned, how accurate the model was, and how many clicks ended up converting. Daily and residual charts answer 'is the model right, and which direction does it err?' in one glance."),
+        ("h", "2.  You drive the model — yourself"),
+        ("p", "We hand you the keyboard. Describe a click in plain English — device, country, hour of day, search intent, user trust score, auction pressure, recent earnings, repeat visits — and press Predict. In under a second you see the predicted revenue, the model version that priced it, and the latency. Below it, a live pipeline trace lights up the five backend steps as they happen: validate, guardrails, AI model on Vertex, BigQuery stream, SHAP explanation."),
+        ("h", "3.  Why the model said that"),
+        ("p", "The same prediction renders a horizontal-bar attribution chart: green bars pushed the price up, red pushed it down, starting from the model's baseline. Every prediction is auditable, and the names on the chart are plain English ('User trust score', 'Recent 7-day earnings'), not engineering jargon."),
+        ("h", "4.  The safety net, on cue"),
+        ("p", "We send a deliberately malformed click. The service rejects it cleanly, the circuit-breaker counters tick on the model-health panel, and the request never reaches the model. No degradation visible to clean traffic."),
+        ("mute", f"Live dashboard  ·  {DEMO_URL}"),
+    ], font_size=12)
     footer(s, prs, 7)
 
 
