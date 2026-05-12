@@ -43,7 +43,11 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - name: install
-        run: pip install -e ".[dev]"
+        # Upgrade pip to current to clear self-CVEs (CVE-2026-3219, CVE-2026-6357
+        # both fixed in 26.1+) before pip-audit inspects the env.
+        run: |
+          pip install --upgrade "pip>=26.1"
+          pip install -e ".[dev]"
       - name: layer enforcement (§2 import-linter)
         run: lint-imports
       - name: lint
@@ -53,9 +57,7 @@ jobs:
       - name: tests + coverage (§5)
         run: pytest
       - name: supply chain (§4 pip-audit)
-        # CVE-2026-3219 is against pip itself with no fix version; tracked
-        # upstream — ignore until a patched pip lands.
-        run: pip-audit --ignore-vuln CVE-2026-3219
+        run: pip-audit
 
   python-mcp-servers:
     runs-on: ubuntu-latest
