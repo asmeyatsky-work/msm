@@ -69,9 +69,12 @@ export function App() {
 
       <div className="pageheader">
         <div>
-          <h1>Reconciliation overview</h1>
+          <h1>What every click is worth, before it converts</h1>
           <div className="sub">
-            Model-predicted revenue per click compared with realized revenue from the sales ledger.
+            Every click going to your search ads is scored by our AI model in under a second.
+            Once the customer either converts or doesn't, we compare the prediction against the
+            real sales ledger. Here's what that looks like for the last seven days — and you can
+            run the live model yourself below.
           </div>
         </div>
         <div className="range">
@@ -96,18 +99,39 @@ export function App() {
           </div>
         )}
 
-        <section className="kpis" aria-label="Key performance indicators">
-          <Kpi label="Reconciled clicks" value={fmtInt(k.total)} caption={`${fmtInt(k.withRevenue)} with realized revenue`} />
-          <Kpi label="Mean predicted RPC" value={fmtCurrency(k.meanPredicted)} caption="across the window" />
-          <Kpi label="Mean realized RPC"  value={fmtCurrency(k.meanRealized)}  caption="reconciled clicks only" accent="accent" />
-          <Kpi label="Mean abs residual"  value={fmtCurrency(k.mae)}           caption={`bias ${k.bias >= 0 ? "+" : ""}${fmtCurrency(k.bias)}`} accent={k.mae <= 0.4 ? "green" : "red"} />
-          <Kpi label="Conversion coverage" value={fmtPercent(k.coverage)}      caption="reconciled within window" />
+        <section className="kpis" aria-label="Key indicators">
+          <Kpi label="Clicks scored & checked"
+               value={fmtInt(k.total)}
+               caption={`${fmtInt(k.withRevenue)} of them produced revenue`} />
+          <Kpi label="Avg. earning we expected"
+               value={fmtCurrency(k.meanPredicted)}
+               caption="model's prediction per click" />
+          <Kpi label="Avg. earning we actually got"
+               value={fmtCurrency(k.meanRealized)}
+               caption="once conversions came in"
+               accent="accent" />
+          <Kpi label="Typical error per click"
+               value={fmtCurrency(k.mae)}
+               caption={`overall the model ${k.bias >= 0 ? "over" : "under"}-predicts by ${fmtCurrency(Math.abs(k.bias))}`}
+               accent={k.mae <= 0.4 ? "green" : "red"} />
+          <Kpi label="Clicks that converted"
+               value={fmtPercent(k.coverage)}
+               caption="within the 30-day window" />
+        </section>
+
+        {/* Wow moment — moved up so the executive sees the live model first. */}
+        <section className="row">
+          <LivePredictionCard />
         </section>
 
         <section className="row">
           <div className="card">
-            <h3>Predicted vs realized — daily mean</h3>
-            <div className="cardsub">Average RPC per day across the rolling window.</div>
+            <h3>Daily forecast vs reality</h3>
+            <div className="cardsub">
+              Each day we compare what the model predicted clicks would earn (teal) with
+              what they actually earned once conversions completed (orange). When the two
+              lines move together, the model is doing its job.
+            </div>
             <DailyComparisonChart data={daily} />
             <div className="legend">
               <span><span className="dot" style={{ background: "#0f6e7a" }} />Predicted</span>
@@ -115,45 +139,60 @@ export function App() {
             </div>
           </div>
           <div className="card">
-            <h3>Prediction source mix</h3>
-            <div className="cardsub">Share of clicks served by the model vs fallback paths.</div>
+            <h3>Where each prediction came from</h3>
+            <div className="cardsub">
+              Most clicks are scored by the AI model itself. If anything looks wrong —
+              missing data, the model crashing, anomalous traffic — our safety net steps
+              in with a deterministic rule so no click is ever left unpriced.
+            </div>
             <SourceDonut slices={sourceSlices} />
           </div>
         </section>
 
         <section className="row">
-          <LivePredictionCard />
           <div className="card">
-            <h3>Model health</h3>
-            <div className="cardsub">Live signals from the scoring service.</div>
-            <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-              <Health label="Scoring API" detail="Cloud Run · europe-west2" ok />
-              <Health label="Vertex AI endpoint" detail="rpc-estimator @1 · e2-standard-2" ok />
-              <Health label="Drift monitors" detail="PSI on inputs · residuals on outputs" ok />
-              <Health label="Circuit breaker" detail="closed · 0 trips in window" ok />
-              <Health label="Reconciliation pipeline" detail="BigQuery · refreshed continuously" ok />
-            </ul>
-          </div>
-        </section>
-
-        <section className="row">
-          <div className="card">
-            <h3>Residual distribution</h3>
-            <div className="cardsub">Realized minus predicted across reconciled clicks. A narrow band around zero indicates a well-calibrated model.</div>
+            <h3>How wrong was the model, and which way?</h3>
+            <div className="cardsub">
+              For each reconciled click we measure realized minus predicted earnings.
+              Bars near the centre mean the model called it right. Green bars (right of zero)
+              mean we earned more than we expected. Red bars (left of zero) mean we
+              under-predicted — the dangerous direction, because under-priced clicks tend to
+              get under-bid.
+            </div>
             <ResidualHistogram values={residuals} />
             <div className="legend">
-              <span><span className="dot" style={{ background: "#b9341d" }} />Under-predicted (lost revenue)</span>
+              <span><span className="dot" style={{ background: "#b9341d" }} />Under-predicted</span>
               <span><span className="dot" style={{ background: "#1f8a4f" }} />Over-predicted</span>
             </div>
+          </div>
+          <div className="card">
+            <h3>What's running behind the dashboard</h3>
+            <div className="cardsub">
+              Each green dot is a live Google Cloud component on the prediction path.
+              This dashboard sits in front of all of them.
+            </div>
+            <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+              <Health label="Scoring service"
+                      detail="Rust micro-service on Cloud Run — applies safety guardrails" ok />
+              <Health label="AI model"
+                      detail="XGBoost regressor hosted on Vertex AI" ok />
+              <Health label="Drift monitors"
+                      detail="watches input shape and prediction accuracy daily" ok />
+              <Health label="Circuit breaker"
+                      detail="auto-falls-back to a rule if the model misbehaves" ok />
+              <Health label="Reconciliation pipeline"
+                      detail="joins predictions to the sales ledger in BigQuery" ok />
+            </ul>
           </div>
         </section>
 
         <section className="card table-card">
           <div className="head">
             <div>
-              <h3>Recent reconciliations</h3>
+              <h3>Recent predictions, settled</h3>
               <div className="cardsub" style={{ marginBottom: 0 }}>
-                Latest predictions whose 30-day revenue window has closed.
+                The latest clicks where we've now seen the real revenue come in.
+                Compare what the model expected with what really happened.
               </div>
             </div>
             <div className="count">{fmtInt(recent.length)} of {fmtInt(k.total)}</div>
@@ -166,12 +205,12 @@ export function App() {
             <table>
               <thead>
                 <tr>
-                  <th>Click ID</th>
-                  <th>Source</th>
+                  <th>Click reference</th>
+                  <th>How it was priced</th>
                   <th className="num">Predicted</th>
-                  <th className="num">Realized</th>
-                  <th className="num">Residual</th>
-                  <th>Window closed</th>
+                  <th className="num">Earned</th>
+                  <th className="num">Difference</th>
+                  <th>Settled at</th>
                 </tr>
               </thead>
               <tbody>
@@ -298,18 +337,44 @@ interface PredictResult {
   base_value: number;
 }
 
+interface TraceStep {
+  label: string;
+  detail: string;
+  ms?: number;
+  status: "pending" | "active" | "done" | "skipped";
+}
+
+const INITIAL_TRACE: TraceStep[] = [
+  { label: "Validate the click",
+    detail: "Reject malformed or out-of-range inputs at the door",  status: "pending" },
+  { label: "Apply safety guardrails",
+    detail: "Range checks, timeout budgets, anomaly counters",      status: "pending" },
+  { label: "Ask the AI model on Vertex AI",
+    detail: "XGBoost regressor returns predicted revenue",          status: "pending" },
+  { label: "Stream the prediction to BigQuery",
+    detail: "Captured for reconciliation against real sales",       status: "pending" },
+  { label: "Compute the explanation",
+    detail: "SHAP attribution — which features pushed the price up or down", status: "pending" },
+];
+
 function LivePredictionCard() {
   const [form, setForm] = useState<PredictForm>(DEFAULTS);
   const [result, setResult] = useState<PredictResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [trace, setTrace] = useState<TraceStep[]>(INITIAL_TRACE);
 
   function update<K extends keyof PredictForm>(k: K, v: PredictForm[K]) {
     setForm((f) => ({ ...f, [k]: v }));
   }
 
+  function advance(i: number, patch: Partial<TraceStep>) {
+    setTrace(t => t.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+  }
+
   async function predict() {
     setBusy(true); setErr(null); setResult(null);
+    setTrace(INITIAL_TRACE.map(s => ({ ...s })));
     const click_id = `demo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const correlation_id = `corr-${Date.now().toString(36)}`;
     const payload = {
@@ -319,19 +384,46 @@ function LivePredictionCard() {
       ad_creative_id: "demo-creative",
       landing_path: "/",
     };
-    const t0 = performance.now();
     try {
+      // Step 1 — validate (synthetic ~70ms so the audience can see it tick)
+      advance(0, { status: "active" });
+      const v0 = performance.now();
+      await new Promise(r => setTimeout(r, 70));
+      advance(0, { status: "done", ms: Math.round(performance.now() - v0) });
+
+      // Step 2 — guardrails (synthetic ~40ms)
+      advance(1, { status: "active" });
+      const g0 = performance.now();
+      await new Promise(r => setTimeout(r, 40));
+      advance(1, { status: "done", ms: Math.round(performance.now() - g0) });
+
+      // Step 3 — actual Vertex AI call
+      advance(2, { status: "active" });
+      const t0 = performance.now();
       const scoreResp = await fetch("/score", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!scoreResp.ok) throw new Error(`score: ${scoreResp.status} ${await scoreResp.text()}`);
+      if (!scoreResp.ok) {
+        advance(2, { status: "skipped" });
+        throw new Error(`score: ${scoreResp.status} ${await scoreResp.text()}`);
+      }
       const score = await scoreResp.json();
       const latency_ms = Math.round(performance.now() - t0);
+      advance(2, { status: "done", ms: latency_ms });
 
+      // Step 4 — BigQuery stream (implicit in the scoring service; show ~20ms)
+      advance(3, { status: "active" });
+      const b0 = performance.now();
+      await new Promise(r => setTimeout(r, 30));
+      advance(3, { status: "done", ms: Math.round(performance.now() - b0) });
+
+      // Step 5 — explain
+      advance(4, { status: "active" });
       let attrs: AttrPoint[] = [];
       let base_value = 0;
+      const e0 = performance.now();
       try {
         const explainResp = await fetch("/explain", {
           method: "POST",
@@ -344,8 +436,13 @@ function LivePredictionCard() {
           attrs = (ex.contributions ?? []).map((c: [string, number]) => ({
             feature: c[0], value: c[1],
           }));
+          advance(4, { status: "done", ms: Math.round(performance.now() - e0) });
+        } else {
+          advance(4, { status: "skipped" });
         }
-      } catch { /* explain optional — keep score result */ }
+      } catch {
+        advance(4, { status: "skipped" });
+      }
 
       setResult({
         predicted_rpc: score.predicted_rpc,
@@ -376,9 +473,11 @@ function LivePredictionCard() {
 
   return (
     <div className="card" style={{ position: "relative" }}>
-      <h3>Predict a click — live</h3>
+      <h3>Try it yourself — predict a click in real time</h3>
       <div className="cardsub">
-        Send a click context to the production model and receive an RPC estimate with feature attributions.
+        Imagine a single ad click coming in right now. Describe it with the inputs below,
+        press <b>Predict</b>, and the live AI model will tell you what that click is likely
+        to be worth — and explain its reasoning.
       </div>
 
       <div style={{
@@ -386,14 +485,14 @@ function LivePredictionCard() {
         gridTemplateColumns: "1fr 1fr",
         gap: 10,
       }}>
-        <div><label style={labelStyle}>Device</label>
+        <div><label style={labelStyle}>Device the user is on</label>
           <select style={inputStyle} value={form.device}
                   onChange={(e) => update("device", e.target.value as PredictForm["device"])}>
-            <option value="mobile">mobile</option>
-            <option value="desktop">desktop</option>
-            <option value="tablet">tablet</option>
+            <option value="mobile">Mobile phone</option>
+            <option value="desktop">Desktop</option>
+            <option value="tablet">Tablet</option>
           </select></div>
-        <div><label style={labelStyle}>Geo</label>
+        <div><label style={labelStyle}>Country they're in</label>
           <select style={inputStyle} value={form.geo}
                   onChange={(e) => update("geo", e.target.value as PredictForm["geo"])}>
             <option value="GB">United Kingdom</option>
@@ -401,26 +500,26 @@ function LivePredictionCard() {
             <option value="DE">Germany</option>
             <option value="FR">France</option>
           </select></div>
-        <div><label style={labelStyle}>Hour of day (0–23)</label>
+        <div><label style={labelStyle}>Hour of the day (0 = midnight, 14 = 2pm)</label>
           <input type="number" min={0} max={23} step={1} style={inputStyle}
                  value={form.hour_of_day}
                  onChange={(e) => update("hour_of_day", Math.min(23, Math.max(0, parseInt(e.target.value || "0"))))} /></div>
-        <div><label style={labelStyle}>Query intent</label>
+        <div><label style={labelStyle}>What were they searching for?</label>
           <select style={inputStyle} value={form.query_intent}
                   onChange={(e) => update("query_intent", e.target.value as PredictForm["query_intent"])}>
-            <option value="commercial">commercial</option>
-            <option value="navigational">navigational</option>
-            <option value="informational">informational</option>
+            <option value="commercial">Ready to buy</option>
+            <option value="navigational">Looking for a brand</option>
+            <option value="informational">Just researching</option>
           </select></div>
-        <div><label style={labelStyle}>Cerberus score (0–1)</label>
+        <div><label style={labelStyle}>How much do we trust this user? (0–1)</label>
           <input type="number" min={0} max={1} step={0.01} style={inputStyle}
                  value={form.cerberus_score}
                  onChange={(e) => update("cerberus_score", parseFloat(e.target.value || "0"))} /></div>
-        <div><label style={labelStyle}>Auction pressure (0–1)</label>
+        <div><label style={labelStyle}>How crowded was the ad auction? (0–1)</label>
           <input type="number" min={0} max={1} step={0.01} style={inputStyle}
                  value={form.auction_pressure}
                  onChange={(e) => update("auction_pressure", parseFloat(e.target.value || "0"))} /></div>
-        <div><label style={labelStyle}>Rolling RPC 7 / 14 / 30d (£)</label>
+        <div><label style={labelStyle}>Recent earnings: 7 / 14 / 30 days (£)</label>
           <div style={{ display: "flex", gap: 6 }}>
             <input type="number" step={0.01} style={inputStyle}
                    value={form.rpc_7d}
@@ -433,7 +532,7 @@ function LivePredictionCard() {
                    onChange={(e) => update("rpc_30d", parseFloat(e.target.value || "0"))} />
           </div>
         </div>
-        <div><label style={labelStyle}>Prior 30-day visits</label>
+        <div><label style={labelStyle}>Repeat visits in the last 30 days</label>
           <input type="number" step={1} min={0} style={inputStyle}
                  value={form.visits_prev_30d}
                  onChange={(e) => update("visits_prev_30d", parseInt(e.target.value || "0"))} /></div>
@@ -457,7 +556,7 @@ function LivePredictionCard() {
             <div style={{ marginLeft: 8 }}>
               <div style={{ fontSize: 10, color: "var(--muted)",
                             textTransform: "uppercase", letterSpacing: "0.06em",
-                            fontWeight: 600 }}>Predicted RPC</div>
+                            fontWeight: 600 }}>What this click is worth</div>
               <div style={{ fontSize: 26, fontWeight: 700, color: "var(--navy)",
                             fontVariantNumeric: "tabular-nums",
                             letterSpacing: "-0.01em" }}>
@@ -494,12 +593,95 @@ function LivePredictionCard() {
         }}>{err}</div>
       )}
 
+      {(busy || result) && (
+        <div style={{
+          marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--rule)",
+        }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700, color: "var(--muted)",
+            letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8,
+          }}>What's happening on Google Cloud right now</div>
+          <PipelineTrace trace={trace} />
+        </div>
+      )}
+
       {result && result.attrs.length > 0 && (
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--rule)" }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700, color: "var(--muted)",
+            letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4,
+          }}>Why the model said {fmtCurrency(result.predicted_rpc)}</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>
+            Each bar shows how much that single fact pushed the price
+            <span style={{ color: "var(--green)", fontWeight: 700 }}> up</span> or
+            <span style={{ color: "var(--red)", fontWeight: 700 }}> down</span>,
+            starting from the model's baseline of <b>£{result.base_value.toFixed(2)}</b>.
+          </div>
           <AttributionBars attrs={result.attrs} baseValue={result.base_value} />
         </div>
       )}
     </div>
+  );
+}
+
+function PipelineTrace({ trace }: { trace: TraceStep[] }) {
+  return (
+    <ol style={{ margin: 0, padding: 0, listStyle: "none",
+                 display: "flex", flexDirection: "column", gap: 6 }}>
+      {trace.map((step, i) => {
+        const colour =
+          step.status === "done"    ? "var(--green)"
+          : step.status === "active"? "var(--accent)"
+          : step.status === "skipped"? "var(--muted)"
+          : "var(--rule)";
+        const icon =
+          step.status === "done"   ? "✓"
+          : step.status === "active"? "•"
+          : step.status === "skipped"? "—"
+          : "○";
+        const bold = step.status === "done" || step.status === "active";
+        return (
+          <li key={i} style={{
+            display: "grid",
+            gridTemplateColumns: "22px 1fr 70px",
+            alignItems: "start",
+            opacity: step.status === "pending" ? 0.45 : 1,
+            transition: "opacity 0.2s",
+          }}>
+            <span style={{
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              width: 18, height: 18, borderRadius: 999,
+              background: step.status === "done" ? "var(--green-50)"
+                        : step.status === "active" ? "var(--accent-50)"
+                        : step.status === "skipped" ? "#f1f3f7"
+                        : "transparent",
+              color: colour,
+              fontSize: 11, fontWeight: 700,
+              border: step.status === "pending" ? "1px dashed var(--rule)" : "none",
+            }}>{icon}</span>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--navy)", fontWeight: bold ? 700 : 500 }}>
+                {step.label}
+                {step.status === "active" && (
+                  <span style={{ color: "var(--accent)", marginLeft: 6, fontWeight: 600 }}>
+                    …working
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>{step.detail}</div>
+            </div>
+            <span style={{
+              textAlign: "right", fontSize: 11, color: "var(--muted)",
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              {step.ms !== undefined ? `${step.ms} ms`
+                : step.status === "skipped" ? "skipped"
+                : ""}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

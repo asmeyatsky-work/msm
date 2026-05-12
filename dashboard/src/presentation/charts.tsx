@@ -1,6 +1,7 @@
 // Hand-rolled SVG charts — keep the dependency footprint to React only.
 import { useMemo } from "react";
 import { fmtCurrency, fmtDateOnly } from "./format";
+import { humanise } from "./labels";
 
 const NAVY = "#0b1f3a";
 const TEAL = "#0f6e7a";
@@ -165,7 +166,7 @@ export function AttributionBars({ attrs, baseValue }: { attrs: AttrPoint[]; base
           }}>
             <span style={{ color: "var(--slate)", whiteSpace: "nowrap",
                            overflow: "hidden", textOverflow: "ellipsis" }}
-                  title={a.feature}>{a.feature}</span>
+                  title={a.feature}>{humanise(a.feature)}</span>
             <div style={{ position: "relative", height: 16,
                           background: "#f1f3f7", borderRadius: 3, overflow: "hidden" }}>
               <div style={{
