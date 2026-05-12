@@ -18,6 +18,7 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Cloud Run sets $PORT; nginx image's envsubst entrypoint expands the template.
 ENV PORT=8080
 ENV RECONCILIATION_API_HOST=reconciliation-staging-794974391956.europe-west2.run.app
+ENV SCORING_API_HOST=scoring-api-staging-794974391956.europe-west2.run.app
 # Restrict envsubst to our vars so nginx's own $uri/$host/$upstream aren't blanked.
-ENV NGINX_ENVSUBST_FILTER=^(PORT|RECONCILIATION_API_HOST)$
+ENV NGINX_ENVSUBST_FILTER=^(PORT|RECONCILIATION_API_HOST|SCORING_API_HOST)$
 EXPOSE 8080

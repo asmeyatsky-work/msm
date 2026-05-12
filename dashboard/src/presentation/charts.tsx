@@ -136,6 +136,61 @@ export function SourceDonut({ slices }: { slices: SourceSlice[] }) {
   );
 }
 
+export interface AttrPoint { feature: string; value: number; }
+
+export function AttributionBars({ attrs, baseValue }: { attrs: AttrPoint[]; baseValue: number }) {
+  const sorted = [...attrs].sort((a, b) => Math.abs(b.value) - Math.abs(a.value)).slice(0, 8);
+  if (sorted.length === 0) {
+    return <div className="empty" style={{ padding: 16 }}>No attributions returned.</div>;
+  }
+  const maxAbs = Math.max(...sorted.map(a => Math.abs(a.value)), 0.001);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+      <div style={{ display: "flex", justifyContent: "space-between",
+                    fontSize: 11, color: MUTED, marginBottom: 4 }}>
+        <span>Top feature contributions</span>
+        <span>base value: £{baseValue.toFixed(3)}</span>
+      </div>
+      {sorted.map(a => {
+        const pct = (Math.abs(a.value) / maxAbs) * 100;
+        const positive = a.value >= 0;
+        const color = positive ? "#1f8a4f" : "#b9341d";
+        return (
+          <div key={a.feature} style={{
+            display: "grid",
+            gridTemplateColumns: "140px 1fr 70px",
+            alignItems: "center",
+            fontSize: 12,
+            fontVariantNumeric: "tabular-nums",
+          }}>
+            <span style={{ color: "var(--slate)", whiteSpace: "nowrap",
+                           overflow: "hidden", textOverflow: "ellipsis" }}
+                  title={a.feature}>{a.feature}</span>
+            <div style={{ position: "relative", height: 16,
+                          background: "#f1f3f7", borderRadius: 3, overflow: "hidden" }}>
+              <div style={{
+                position: "absolute",
+                left: positive ? "50%" : `${50 - pct / 2}%`,
+                width: `${pct / 2}%`,
+                top: 0, bottom: 0,
+                background: color,
+                opacity: 0.85,
+              }} />
+              <div style={{
+                position: "absolute", left: "50%", top: 0, bottom: 0,
+                width: 1, background: "var(--rule)",
+              }} />
+            </div>
+            <span style={{ textAlign: "right", color, fontWeight: 600 }}>
+              {positive ? "+" : ""}{a.value.toFixed(3)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export interface ResidualPoint { value: number; }
 export function ResidualHistogram({ values, bins = 11 }: { values: number[]; bins?: number }) {
   const width = 320;
