@@ -15,7 +15,9 @@ const gateway = new HttpReconciliationGateway(
 const useCase = new LoadReconciliation(gateway);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const WINDOW_DAYS = 7;
+const WINDOW_OPTIONS = [7, 30, 90] as const;
+type WindowDays = (typeof WINDOW_OPTIONS)[number];
+const DEFAULT_WINDOW_DAYS: WindowDays = 7;
 
 type Status = { kind: "loading" } | { kind: "ready" } | { kind: "error"; msg: string };
 
@@ -23,10 +25,11 @@ export function App() {
   const [rows, setRows] = useState<ReconciliationRow[]>([]);
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
-  const [range] = useState(() => {
+  const [windowDays, setWindowDays] = useState<WindowDays>(DEFAULT_WINDOW_DAYS);
+  const range = useMemo(() => {
     const end = Date.now();
-    return { start: end - WINDOW_DAYS * DAY_MS, end };
-  });
+    return { start: end - windowDays * DAY_MS, end };
+  }, [windowDays]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,8 +80,28 @@ export function App() {
             run the live model yourself below.
           </div>
         </div>
-        <div className="range">
-          <b>{fmtDateOnly(range.start)}</b> — <b>{fmtDateOnly(range.end)}</b> · last {WINDOW_DAYS} days
+        <div className="range" style={{
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span><b>{fmtDateOnly(range.start)}</b> — <b>{fmtDateOnly(range.end)}</b></span>
+          <span style={{ color: "var(--rule)" }}>|</span>
+          <span style={{ display: "inline-flex", gap: 0,
+                         border: "1px solid var(--rule)", borderRadius: 4,
+                         overflow: "hidden" }}>
+            {WINDOW_OPTIONS.map((d) => {
+              const active = d === windowDays;
+              return (
+                <button key={d} onClick={() => setWindowDays(d)}
+                  style={{
+                    border: 0,
+                    background: active ? "var(--navy)" : "#fff",
+                    color: active ? "#fff" : "var(--muted)",
+                    padding: "3px 10px", fontSize: 11, fontWeight: 600,
+                    cursor: "pointer",
+                  }}>{d}d</button>
+              );
+            })}
+          </span>
         </div>
       </div>
 

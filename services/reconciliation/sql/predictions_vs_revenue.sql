@@ -1,6 +1,15 @@
--- Materialized view joining logged predictions with realized revenue.
--- Consumed by the reconciliation service and by Looker (PRD §2.2).
--- The conversion window is configurable (PRD §3.2); defaults to 30d.
+-- predictions_vs_revenue view — joins logged predictions to realized revenue.
+-- Consumed by the reconciliation service and by the dashboard.
+--
+-- ADR 0003 (sum-of-rewards): the label for a click is the sum of all
+-- ledger rows for that click_id inside the reconciliation window —
+-- charge-backs included (signed revenue). One row per click in this view.
+--
+-- The reconciliation window is configurable per environment via the
+-- `${window_days}` placeholder, substituted at apply time:
+--   * generic / e-commerce default: 30
+--   * Credit Cards (ADR 0003): 90
+-- See `infra/terraform/envs/*.tfvars` (`reconciliation_window_days`).
 
 CREATE OR REPLACE VIEW `${project}.${dataset}.predictions_vs_revenue` AS
 WITH pred AS (
@@ -29,7 +38,7 @@ SELECT
   COALESCE(r.realized_rpc, 0.0) AS realized_rpc,
   p.source,
   p.model_version,
-  p.predicted_at_ms + (30 * 24 * 60 * 60 * 1000) AS window_ends_at_ms,
+  p.predicted_at_ms + (${window_days} * 24 * 60 * 60 * 1000) AS window_ends_at_ms,
   r.first_revenue_at
 FROM pred p
 LEFT JOIN rev r USING (click_id);

@@ -1,0 +1,75 @@
+config {
+  type: "view",
+  schema: "rpc_estimator",
+  description: "Sales-coverage audit. For every click, did we see a sales-ledger row inside the reconciliation window? Sliced by the dimensions that typically explain missingness so we can tell random coverage gaps from systematic ones — answers the question in the Credit Cards data contract (50% → 80% trajectory). Read by the dashboard's 'Where we have full visibility vs where we don't' panel.",
+}
+
+-- A click is 'covered' if at least one positive-revenue row exists for it
+-- in the sales ledger within the reconciliation window. Charge-backs do
+-- not count as coverage (they post-date conversion).
+WITH preds AS (
+  SELECT
+    click_id,
+    JSON_EXTRACT_SCALAR(data, '$.product_type')  AS product_type,
+    JSON_EXTRACT_SCALAR(data, '$.device')        AS device,
+    JSON_EXTRACT_SCALAR(data, '$.geo')           AS geo,
+    JSON_EXTRACT_SCALAR(data, '$.query_intent')  AS query_intent,
+    JSON_EXTRACT_SCALAR(data, '$.ad_creative_id') AS ad_creative_id,
+    TIMESTAMP_MILLIS(CAST(JSON_EXTRACT_SCALAR(data, '$.ts_ms') AS INT64))
+      AS predicted_at
+  FROM ${ref("rpc_predictions")}
+),
+covered AS (
+  SELECT
+    p.click_id,
+    p.product_type,
+    p.device,
+    p.geo,
+    p.query_intent,
+    p.ad_creative_id,
+    p.predicted_at,
+    LOGICAL_OR(r.revenue > 0) AS has_revenue
+  FROM preds p
+  LEFT JOIN ${ref("sales_ledger")} r
+    ON  r.click_id = p.click_id
+    AND r.revenue_ts BETWEEN p.predicted_at
+        AND TIMESTAMP_ADD(p.predicted_at,
+              INTERVAL ${dataform.projectConfig.vars.conversion_window_days || 30} DAY)
+  GROUP BY 1, 2, 3, 4, 5, 6, 7
+)
+-- Slice 1: total
+SELECT "TOTAL"          AS slice_dim, "all"               AS slice_value,
+       COUNT(*) AS clicks, COUNTIF(has_revenue) AS covered_clicks,
+       SAFE_DIVIDE(COUNTIF(has_revenue), COUNT(*)) AS coverage_rate
+FROM covered
+UNION ALL
+-- Slice 2: by product type
+SELECT "product_type"   AS slice_dim, COALESCE(product_type, "unknown"),
+       COUNT(*), COUNTIF(has_revenue),
+       SAFE_DIVIDE(COUNTIF(has_revenue), COUNT(*))
+FROM covered GROUP BY 2
+UNION ALL
+-- Slice 3: by device
+SELECT "device"         AS slice_dim, COALESCE(device, "unknown"),
+       COUNT(*), COUNTIF(has_revenue),
+       SAFE_DIVIDE(COUNTIF(has_revenue), COUNT(*))
+FROM covered GROUP BY 2
+UNION ALL
+-- Slice 4: by geo
+SELECT "geo"            AS slice_dim, COALESCE(geo, "unknown"),
+       COUNT(*), COUNTIF(has_revenue),
+       SAFE_DIVIDE(COUNTIF(has_revenue), COUNT(*))
+FROM covered GROUP BY 2
+UNION ALL
+-- Slice 5: by query intent
+SELECT "query_intent"   AS slice_dim, COALESCE(query_intent, "unknown"),
+       COUNT(*), COUNTIF(has_revenue),
+       SAFE_DIVIDE(COUNTIF(has_revenue), COUNT(*))
+FROM covered GROUP BY 2
+UNION ALL
+-- Slice 6: by day-of-week (informational: catches weekend reporting gaps)
+SELECT "day_of_week"    AS slice_dim,
+       FORMAT_TIMESTAMP("%A", predicted_at) AS slice_value,
+       COUNT(*), COUNTIF(has_revenue),
+       SAFE_DIVIDE(COUNTIF(has_revenue), COUNT(*))
+FROM covered GROUP BY 2

@@ -110,6 +110,55 @@ resource "google_bigquery_table" "predictions_view" {
   depends_on = [google_bigquery_table.predictions]
 }
 
+# Reconciliation view — joins predictions to the sales ledger.
+# ADR 0003 (sum-of-rewards): one row per click, label = SUM(revenue) over
+# all ledger events inside the reconciliation window.
+# Window is configurable: 30 (generic) or 90 (Credit Cards — ADR 0003).
+resource "google_bigquery_table" "predictions_vs_revenue_view" {
+  dataset_id          = google_bigquery_dataset.rpc.dataset_id
+  table_id            = "predictions_vs_revenue"
+  deletion_protection = false
+  view {
+    query          = <<-SQL
+      WITH pred AS (
+        SELECT
+          click_id,
+          correlation_id,
+          predicted_rpc,
+          source,
+          model_version,
+          TIMESTAMP_MILLIS(ts_ms) AS predicted_at,
+          ts_ms AS predicted_at_ms
+        FROM `${var.project_id}.${google_bigquery_dataset.rpc.dataset_id}.rpc_predictions`
+      ),
+      rev AS (
+        SELECT
+          click_id,
+          SUM(revenue) AS realized_rpc,
+          MIN(TIMESTAMP_MILLIS(ts_ms)) AS first_revenue_at
+        FROM `${var.project_id}.${google_bigquery_dataset.rpc.dataset_id}.sales_ledger`
+        GROUP BY click_id
+      )
+      SELECT
+        p.click_id,
+        p.correlation_id,
+        p.predicted_rpc,
+        COALESCE(r.realized_rpc, 0.0) AS realized_rpc,
+        p.source,
+        p.model_version,
+        p.predicted_at_ms + (${var.reconciliation_window_days} * 24 * 60 * 60 * 1000) AS window_ends_at_ms,
+        r.first_revenue_at
+      FROM pred p
+      LEFT JOIN rev r USING (click_id);
+    SQL
+    use_legacy_sql = false
+  }
+  depends_on = [
+    google_bigquery_table.predictions_view,
+    google_bigquery_table.sales_ledger,
+  ]
+}
+
 # Pub/Sub service agent needs BQ write + metadata read to hydrate the sink.
 resource "google_project_iam_member" "pubsub_bq_data_editor" {
   project = var.project_id

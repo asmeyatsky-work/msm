@@ -67,3 +67,9 @@ variable "dashboard_min_instances" {
   type        = number
   default     = 0
 }
+
+variable "reconciliation_window_days" {
+  description = "Days a prediction stays 'in flight' before its reconciliation window closes. ADR 0003 sets this to 90 for Credit Cards; generic e-commerce uses 30."
+  type        = number
+  default     = 30
+}
