@@ -32,10 +32,10 @@ class H(BaseHTTPRequestHandler):
                 "explanations": [{"attributions": [{
                     "baselineOutputValue": 2.5,
                     "featureAttributions": {
-                        "cerberus_score": 0.5,
-                        "rpc_7d": 0.3,
-                        "rpc_14d": 0.2,
-                        "rpc_30d": 0.1,
+                        "affinity_score": 0.5,
+                        "rpc_14d": 0.3,
+                        "rpc_60d": 0.2,
+                        "prior_applicant": 0.1,
                     },
                 }]}]
             })

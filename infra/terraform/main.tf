@@ -80,10 +80,19 @@ resource "google_bigquery_table" "sales_ledger" {
     type  = "DAY"
     field = "revenue_ts"
   }
+  # Schema: PRD V2 (Credit Cards) §7.2. `stage` makes this a multi-stage
+  # ledger (ADR 0003 sum-of-rewards); `margin_rate` is NULLABLE so the
+  # COALESCE(..., 1.0) in click_revenue / predictions_vs_revenue keeps
+  # working until Soteria delivers a commission table (PRD V2 §7.3).
   schema = jsonencode([
+    { name = "ledger_event_id", type = "STRING", mode = "REQUIRED" },
     { name = "click_id", type = "STRING", mode = "REQUIRED" },
     { name = "revenue", type = "FLOAT64", mode = "REQUIRED" },
+    { name = "margin_rate", type = "FLOAT64", mode = "NULLABLE" },
     { name = "revenue_ts", type = "TIMESTAMP", mode = "REQUIRED" },
+    { name = "stage", type = "STRING", mode = "REQUIRED" },
+    { name = "card_product_id", type = "STRING", mode = "REQUIRED" },
+    { name = "currency", type = "STRING", mode = "REQUIRED" },
     { name = "order_id", type = "STRING", mode = "NULLABLE" },
     { name = "ts_ms", type = "INT64", mode = "NULLABLE" },
   ])
@@ -134,7 +143,9 @@ resource "google_bigquery_table" "predictions_vs_revenue_view" {
       rev AS (
         SELECT
           click_id,
-          SUM(revenue) AS realized_rpc,
+          -- Soteria-ready: profit = revenue × margin_rate. Coalesces to 1.0
+          -- until the commission table is delivered (PRD V2 §7.3).
+          SUM(revenue * COALESCE(margin_rate, 1.0)) AS realized_rpc,
           MIN(TIMESTAMP_MILLIS(ts_ms)) AS first_revenue_at
         FROM `${var.project_id}.${google_bigquery_dataset.rpc.dataset_id}.sales_ledger`
         GROUP BY click_id
@@ -226,20 +237,27 @@ resource "google_bigquery_table" "clicks_view" {
   deletion_protection = false
   view {
     query          = <<-SQL
+      -- Typed view over the CM360 click stream. Schema: PRD V2 §7.1
+      -- (Credit Cards). vertical_id defaults to 'credit_cards' so the
+      -- upstream publisher can omit it during the MVP.
       SELECT
         JSON_EXTRACT_SCALAR(data, '$.click_id')        AS click_id,
+        JSON_EXTRACT_SCALAR(data, '$.correlation_id')  AS correlation_id,
         TIMESTAMP(JSON_EXTRACT_SCALAR(data, '$.click_ts')) AS click_ts,
+        COALESCE(JSON_EXTRACT_SCALAR(data, '$.vertical_id'), 'credit_cards') AS vertical_id,
         JSON_EXTRACT_SCALAR(data, '$.device')          AS device,
         JSON_EXTRACT_SCALAR(data, '$.geo')             AS geo,
         CAST(JSON_EXTRACT_SCALAR(data, '$.hour_of_day') AS INT64) AS hour_of_day,
+        JSON_EXTRACT_SCALAR(data, '$.product_type')    AS product_type,
+        JSON_EXTRACT_SCALAR(data, '$.card_product_id') AS card_product_id,
         JSON_EXTRACT_SCALAR(data, '$.query_intent')    AS query_intent,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.affinity_score')   AS FLOAT64) AS affinity_score,
         JSON_EXTRACT_SCALAR(data, '$.ad_creative_id')  AS ad_creative_id,
-        CAST(JSON_EXTRACT_SCALAR(data, '$.cerberus_score')   AS FLOAT64) AS cerberus_score,
-        CAST(JSON_EXTRACT_SCALAR(data, '$.rpc_7d')           AS FLOAT64) AS rpc_7d,
-        CAST(JSON_EXTRACT_SCALAR(data, '$.rpc_14d')          AS FLOAT64) AS rpc_14d,
-        CAST(JSON_EXTRACT_SCALAR(data, '$.rpc_30d')          AS FLOAT64) AS rpc_30d,
-        CAST(JSON_EXTRACT_SCALAR(data, '$.is_payday_week')   AS BOOL)    AS is_payday_week,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.prior_applicant')  AS BOOL)    AS prior_applicant,
+        NULLIF(JSON_EXTRACT_SCALAR(data, '$.income_band_bucket'), '')     AS income_band_bucket,
         CAST(JSON_EXTRACT_SCALAR(data, '$.auction_pressure') AS FLOAT64) AS auction_pressure,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.rpc_14d')          AS FLOAT64) AS rpc_14d,
+        CAST(JSON_EXTRACT_SCALAR(data, '$.rpc_60d')          AS FLOAT64) AS rpc_60d,
         JSON_EXTRACT_SCALAR(data, '$.landing_path')          AS landing_path,
         CAST(JSON_EXTRACT_SCALAR(data, '$.visits_prev_30d')  AS INT64)   AS visits_prev_30d,
         publish_time                                                      AS ingested_at

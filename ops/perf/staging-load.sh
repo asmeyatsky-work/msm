@@ -17,7 +17,7 @@ DURATION="${DURATION:-30s}"
 CONCURRENCY="${CONCURRENCY:-10}"
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 
-PAYLOAD='{"click_id":"perf-1","correlation_id":"perf","device":"mobile","geo":"US","hour_of_day":10,"query_intent":"x","ad_creative_id":"a","cerberus_score":0.5,"rpc_7d":1.0,"rpc_14d":1.0,"rpc_30d":1.0,"is_payday_week":false,"auction_pressure":0.5,"landing_path":"/","visits_prev_30d":0}'
+PAYLOAD='{"click_id":"perf-1","correlation_id":"perf","vertical_id":"credit_cards","device":"mobile","geo":"GB","hour_of_day":10,"product_type":"cashback","card_product_id":"card-x","query_intent":"compare","affinity_score":0.7,"ad_creative_id":"a","prior_applicant":false,"income_band_bucket":"mid","auction_pressure":0.5,"rpc_14d":1.0,"rpc_60d":1.0,"landing_path":"/","visits_prev_30d":0}'
 
 mode="${1:-both}"
 

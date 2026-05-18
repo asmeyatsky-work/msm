@@ -27,7 +27,7 @@ class H(BaseHTTPRequestHandler):
             self._send_json(200, {
                 "explanations": [{"attributions": [{
                     "baselineOutputValue": 1.0,
-                    "featureAttributions": {"rpc_7d": 0.3, "rpc_14d": 0.2}
+                    "featureAttributions": {"rpc_14d": 0.3, "rpc_60d": 0.2}
                 }]}]
             })
         else:

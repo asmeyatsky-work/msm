@@ -35,10 +35,12 @@ impl ClvEndpoint for VertexClvEndpoint {
         let body = serde_json::json!({
             "instances": [{
                 "click_id": features.click_id().as_str(),
-                "cerberus_score": features.cerberus_score(),
-                "rpc_7d": features.rpc_7d(),
+                "vertical_id": features.vertical_id(),
+                "product_type": features.product_type(),
+                "affinity_score": features.affinity_score(),
                 "rpc_14d": features.rpc_14d(),
-                "rpc_30d": features.rpc_30d(),
+                "rpc_60d": features.rpc_60d(),
+                "prior_applicant": features.prior_applicant(),
             }]
         });
         let resp = self

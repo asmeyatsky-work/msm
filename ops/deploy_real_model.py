@@ -40,18 +40,21 @@ def main() -> None:
     # ---------- 1. Pull training frame from BQ ----------
     step("1/6 fetch training frame from BQ")
     bq = bigquery.Client(project=PROJECT)
+    # Schema: PRD V2 (Credit Cards) §7.1. Feature order MUST match
+    # services/ml-pipeline/.../xgboost_trainer.py _FEATURE_ORDER and the
+    # serving payload in services/scoring-api/.../vertex_endpoint.rs.
     df = bq.query(f"""
         SELECT
-          hour_of_day, cerberus_score, rpc_7d, rpc_14d, rpc_30d,
-          CAST(is_payday_week AS INT64) AS is_payday_week,
+          hour_of_day, affinity_score, rpc_14d, rpc_60d,
+          CAST(prior_applicant AS INT64) AS prior_applicant,
           auction_pressure, visits_prev_30d, target_revenue
         FROM `{PROJECT}.{DATASET}.rpc_training_rows`
     """).to_dataframe()
     print(f"   n={len(df)}  mean(target)={df['target_revenue'].mean():.3f}")
 
     feature_cols = [
-        "hour_of_day", "cerberus_score", "rpc_7d", "rpc_14d", "rpc_30d",
-        "is_payday_week", "auction_pressure", "visits_prev_30d",
+        "hour_of_day", "affinity_score", "rpc_14d", "rpc_60d",
+        "prior_applicant", "auction_pressure", "visits_prev_30d",
     ]
     X = df[feature_cols].to_numpy(dtype=np.float32)
     y = df["target_revenue"].to_numpy(dtype=np.float32)

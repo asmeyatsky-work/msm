@@ -34,7 +34,7 @@ covered AS (
     ON  r.click_id = p.click_id
     AND r.revenue_ts BETWEEN p.predicted_at
         AND TIMESTAMP_ADD(p.predicted_at,
-              INTERVAL ${dataform.projectConfig.vars.conversion_window_days || 30} DAY)
+              INTERVAL ${dataform.projectConfig.vars.conversion_window_days || 90} DAY)
   GROUP BY 1, 2, 3, 4, 5, 6, 7
 )
 -- Slice 1: total

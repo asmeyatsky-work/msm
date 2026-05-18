@@ -1,33 +1,28 @@
 config {
   type: "table",
   schema: "rpc_estimator",
-  description: "Rolling 7/14/30-day RPC per click's (ad_creative, geo) bucket — PRD §3.1.",
+  description: "Rolling 14/60-day RPC per click's (card_product_id, geo) bucket — PRD V2 §7.1. CC consideration windows are longer than generic e-commerce, so 7d disappears and 60d replaces 30d.",
   bigquery: {
     partitionBy: "DATE(click_ts)",
   },
 }
 
 WITH base AS (
-  SELECT click_id, click_ts, ad_creative_id, geo, target_revenue
+  SELECT click_id, click_ts, card_product_id, geo, target_revenue
   FROM ${ref("click_revenue")}
 )
 SELECT
   b.click_id,
   b.click_ts,
   AVG(p.target_revenue) OVER (
-    PARTITION BY b.ad_creative_id, b.geo
-    ORDER BY UNIX_SECONDS(b.click_ts)
-    RANGE BETWEEN 7 * 86400  PRECEDING AND 1 PRECEDING
-  ) AS rpc_7d,
-  AVG(p.target_revenue) OVER (
-    PARTITION BY b.ad_creative_id, b.geo
+    PARTITION BY b.card_product_id, b.geo
     ORDER BY UNIX_SECONDS(b.click_ts)
     RANGE BETWEEN 14 * 86400 PRECEDING AND 1 PRECEDING
   ) AS rpc_14d,
   AVG(p.target_revenue) OVER (
-    PARTITION BY b.ad_creative_id, b.geo
+    PARTITION BY b.card_product_id, b.geo
     ORDER BY UNIX_SECONDS(b.click_ts)
-    RANGE BETWEEN 30 * 86400 PRECEDING AND 1 PRECEDING
-  ) AS rpc_30d
+    RANGE BETWEEN 60 * 86400 PRECEDING AND 1 PRECEDING
+  ) AS rpc_60d
 FROM base b
-JOIN base p USING (ad_creative_id, geo)
+JOIN base p USING (card_product_id, geo)

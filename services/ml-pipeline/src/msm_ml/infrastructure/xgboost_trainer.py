@@ -10,15 +10,20 @@ from msm_ml.domain import FeatureVector
 from msm_ml.application.ports import ModelTrainer
 
 # Feature order is fixed at training; scoring-api must use the same order.
+# CC schema (PRD V2 §7.1). Must match vertex_endpoint.rs payload order.
 _FEATURE_ORDER: tuple[str, ...] = (
-    "hour_of_day", "cerberus_score", "rpc_7d", "rpc_14d", "rpc_30d",
-    "is_payday_week", "auction_pressure", "visits_prev_30d",
+    "hour_of_day", "affinity_score", "rpc_14d", "rpc_60d",
+    "prior_applicant", "auction_pressure", "visits_prev_30d",
 )
 
 
 def _row_to_vec(fv: FeatureVector) -> np.ndarray:
     m = fv.as_map()
-    return np.array([float(m[k]) for k in _FEATURE_ORDER], dtype=np.float32)
+    return np.array(
+        [float(m[k]) if not isinstance(m[k], bool) else (1.0 if m[k] else 0.0)
+         for k in _FEATURE_ORDER],
+        dtype=np.float32,
+    )
 
 
 class XGBoostTrainer(ModelTrainer):

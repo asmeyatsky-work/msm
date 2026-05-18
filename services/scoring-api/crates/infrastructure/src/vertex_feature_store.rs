@@ -64,9 +64,8 @@ impl FeatureStore for VertexFeatureStore {
             let name = entry.get("name").and_then(|v| v.as_str()).unwrap_or("");
             let v = entry.pointer("/value/doubleValue").and_then(|v| v.as_f64());
             match name {
-                "rpc_7d" => out.rpc_7d = v,
                 "rpc_14d" => out.rpc_14d = v,
-                "rpc_30d" => out.rpc_30d = v,
+                "rpc_60d" => out.rpc_60d = v,
                 "visits_prev_30d" => out.visits_prev_30d = v.map(|x| x as u32),
                 _ => {}
             }

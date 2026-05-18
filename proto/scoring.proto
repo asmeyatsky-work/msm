@@ -1,5 +1,6 @@
 // Cross-service contract for the Scoring bounded context.
 // Architectural Rules §1: Protobuf for cross-service contracts.
+// Schema: PRD V2 (Credit Cards) §7.1.
 syntax = "proto3";
 
 package msm.scoring.v1;
@@ -9,27 +10,30 @@ package msm.scoring.v1;
 message ClickFeatures {
   string click_id = 1;            // stable click identifier (not GCLID — PRD §2.1)
   string correlation_id = 2;      // propagated through traces (§6)
+  string vertical_id = 3;         // PRD V2 §6.5 — always "credit_cards" at MVP
 
-  // Click-level real-time (PRD §3.1)
+  // Click-level real-time (PRD V2 §7.1)
   string device = 10;
   string geo = 11;
   int32 hour_of_day = 12;         // 0..23
-  string query_intent = 13;
-  string ad_creative_id = 14;
-  double cerberus_score = 15;     // gPS Cerberus / reCAPTCHA, 0..1
+  string product_type = 13;       // cashback|travel|balance_transfer|premium|student|business|secured
+  string card_product_id = 14;
+  string query_intent = 15;       // compare|shop|apply|research|navigational
+  double affinity_score = 16;     // 0..1
+  string ad_creative_id = 17;
+  bool prior_applicant = 18;      // cookie-level, never customer
+  string income_band_bucket = 19; // "low"|"mid"|"high"|"" (empty = NULL)
 
-  // Historical rollups (PRD §3.1)
-  double rpc_7d = 20;
-  double rpc_14d = 21;
-  double rpc_30d = 22;
+  // Auction
+  double auction_pressure = 30;   // 0..1
 
-  // Contextual (PRD §3.1)
-  bool is_payday_week = 30;
-  double auction_pressure = 31;
+  // Historical rollups (PRD V2 §7.1 — windows widened for CC)
+  double rpc_14d = 40;
+  double rpc_60d = 41;
 
-  // Session/landing (PRD §3.1)
-  string landing_path = 40;
-  int32 visits_prev_30d = 41;
+  // Session/landing
+  string landing_path = 50;
+  int32 visits_prev_30d = 51;
 }
 
 message ScoreRequest {

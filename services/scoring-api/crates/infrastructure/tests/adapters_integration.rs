@@ -23,17 +23,20 @@ fn features() -> ClickFeatures {
     ClickFeatures::try_new(ClickFeaturesInput {
         click_id: "c-adapt".into(),
         correlation_id: "t".into(),
+        vertical_id: "credit_cards".into(),
         device: "m".into(),
-        geo: "US".into(),
+        geo: "GB".into(),
         hour_of_day: 10,
-        query_intent: "x".into(),
+        product_type: "cashback".into(),
+        card_product_id: "card-x".into(),
+        query_intent: "compare".into(),
+        affinity_score: 0.7,
         ad_creative_id: "a".into(),
-        cerberus_score: 0.9,
-        rpc_7d: 1.0,
-        rpc_14d: 1.0,
-        rpc_30d: 1.0,
-        is_payday_week: false,
+        prior_applicant: false,
+        income_band_bucket: None,
         auction_pressure: 0.5,
+        rpc_14d: 1.0,
+        rpc_60d: 1.0,
         landing_path: "/".into(),
         visits_prev_30d: 1,
     })
@@ -63,7 +66,7 @@ async fn vertex_explain_parses_attributions() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "explanations": [{"attributions": [{
                 "baselineOutputValue": 1.5,
-                "featureAttributions": {"rpc_7d": 0.3, "cerberus_score": -0.1}
+                "featureAttributions": {"rpc_14d": 0.3, "affinity_score": -0.1}
             }]}]
         })))
         .mount(&server)
@@ -71,7 +74,7 @@ async fn vertex_explain_parses_attributions() {
     let ep = VertexExplain::new(format!("{}/explain", server.uri()), Duration::from_secs(2));
     let a = ep.explain(&features()).await.unwrap();
     assert!((a.base_value - 1.5).abs() < 1e-9);
-    assert_eq!(a.top_features(1)[0].0, "rpc_7d");
+    assert_eq!(a.top_features(1)[0].0, "rpc_14d");
 }
 
 #[tokio::test]
@@ -87,7 +90,7 @@ async fn vertex_explain_parses_indexed_array_shape() {
             "explanations": [{"attributions": [{
                 "baselineOutputValue": -4.1,
                 "featureAttributions": {
-                    "features": [0.39, 3.10, 8.55, -1.05, -0.28, 0.07, 0.06, 0.31]
+                    "features": [0.39, 3.10, 8.55, -1.05, -0.28, 0.07, 0.06]
                 }
             }]}]
         })))
@@ -96,8 +99,9 @@ async fn vertex_explain_parses_indexed_array_shape() {
     let ep = VertexExplain::new(format!("{}/explain", server.uri()), Duration::from_secs(2));
     let a = ep.explain(&features()).await.unwrap();
     assert!((a.base_value - (-4.1)).abs() < 1e-9);
-    assert_eq!(a.contributions.len(), 8);
-    assert_eq!(a.top_features(1)[0].0, "rpc_7d");
+    assert_eq!(a.contributions.len(), 7);
+    // CC schema feature order; index 2 = rpc_14d which is the max value (8.55).
+    assert_eq!(a.top_features(1)[0].0, "rpc_14d");
 }
 
 #[tokio::test]

@@ -22,14 +22,17 @@ if [ "$ready" -ne 1 ]; then
   exit 1
 fi
 
-# Score path.
+# Score path. Schema: PRD V2 (Credit Cards) §7.1.
 RESP=$(curl -fsS -X POST http://localhost:8080/v1/score \
   -H "content-type: application/json" \
   -d '{
-    "click_id":"e2e-1","correlation_id":"e2e","device":"mobile","geo":"US",
-    "hour_of_day":10,"query_intent":"commercial","ad_creative_id":"ad-e2e",
-    "cerberus_score":0.5,"rpc_7d":1.0,"rpc_14d":1.0,"rpc_30d":1.0,
-    "is_payday_week":false,"auction_pressure":0.5,
+    "click_id":"e2e-1","correlation_id":"e2e","vertical_id":"credit_cards",
+    "device":"mobile","geo":"GB","hour_of_day":10,
+    "product_type":"cashback","card_product_id":"card-x",
+    "query_intent":"compare","affinity_score":0.7,
+    "ad_creative_id":"ad-e2e","prior_applicant":false,
+    "income_band_bucket":"mid","auction_pressure":0.5,
+    "rpc_14d":1.0,"rpc_60d":1.0,
     "landing_path":"/","visits_prev_30d":0
   }')
 echo "$RESP"
@@ -39,14 +42,17 @@ echo "$RESP" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d["pr
 EXP=$(curl -fsS -X POST http://localhost:8080/v1/explain \
   -H "content-type: application/json" \
   -d '{
-    "click_id":"e2e-2","correlation_id":"e2e","device":"mobile","geo":"US",
-    "hour_of_day":10,"query_intent":"commercial","ad_creative_id":"ad-e2e",
-    "cerberus_score":0.5,"rpc_7d":1.0,"rpc_14d":1.0,"rpc_30d":1.0,
-    "is_payday_week":false,"auction_pressure":0.5,
+    "click_id":"e2e-2","correlation_id":"e2e","vertical_id":"credit_cards",
+    "device":"mobile","geo":"GB","hour_of_day":10,
+    "product_type":"cashback","card_product_id":"card-x",
+    "query_intent":"compare","affinity_score":0.7,
+    "ad_creative_id":"ad-e2e","prior_applicant":false,
+    "income_band_bucket":"mid","auction_pressure":0.5,
+    "rpc_14d":1.0,"rpc_60d":1.0,
     "landing_path":"/","visits_prev_30d":0
   }')
 echo "$EXP"
-echo "$EXP" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d["base_value"]==1.0, d; assert ("rpc_7d",0.3) in [tuple(x) for x in d["contributions"]], d'
+echo "$EXP" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d["base_value"]==1.0, d; assert ("rpc_14d",0.3) in [tuple(x) for x in d["contributions"]], d'
 
 # Reconciliation service: poll until FastAPI is up, then fetch a wide window.
 ready=0

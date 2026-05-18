@@ -1,7 +1,7 @@
 config {
   type: "incremental",
   schema: "rpc_estimator",
-  description: "Daily Population Stability Index per numeric feature (live clicks vs training baseline). PSI < 0.1 = no shift, 0.1-0.25 = moderate, > 0.25 = major.",
+  description: "Daily Population Stability Index per numeric feature (live clicks vs training baseline). PSI < 0.1 = no shift, 0.1-0.25 = moderate, > 0.25 = major. Features tracked: PRD V2 (Credit Cards) §7.1.",
   bigquery: {
     partitionBy: "as_of_date",
     clusterBy: ["model_version", "feature"],
@@ -29,13 +29,12 @@ WITH live AS (
     value
   FROM ${ref("cm360_clicks")},
   UNNEST([
-    STRUCT("cerberus_score"   AS feature, cerberus_score    AS value),
-    STRUCT("rpc_7d",                       rpc_7d),
-    STRUCT("rpc_14d",                      rpc_14d),
-    STRUCT("rpc_30d",                      rpc_30d),
-    STRUCT("hour_of_day",                  CAST(hour_of_day AS FLOAT64)),
-    STRUCT("auction_pressure",             auction_pressure),
-    STRUCT("visits_prev_30d",              CAST(visits_prev_30d AS FLOAT64))
+    STRUCT("affinity_score"  AS feature, affinity_score AS value),
+    STRUCT("rpc_14d",                    rpc_14d),
+    STRUCT("rpc_60d",                    rpc_60d),
+    STRUCT("hour_of_day",                CAST(hour_of_day AS FLOAT64)),
+    STRUCT("auction_pressure",           auction_pressure),
+    STRUCT("visits_prev_30d",            CAST(visits_prev_30d AS FLOAT64))
   ])
   WHERE DATE(click_ts, "UTC") = DATE_SUB(CURRENT_DATE("UTC"), INTERVAL 1 DAY)
 ),

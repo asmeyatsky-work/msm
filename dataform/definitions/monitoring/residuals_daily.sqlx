@@ -1,7 +1,7 @@
 config {
   type: "incremental",
   schema: "rpc_estimator",
-  description: "Daily aggregate residuals: predicted RPC vs realized ledger revenue. Counts only MODEL-source predictions and only clicks with a ledger row inside the conversion window.",
+  description: "Daily aggregate residuals: predicted RPC vs realized ledger revenue. Counts only MODEL-source predictions and only clicks with a ledger row inside the reconciliation window (90 days for CC). Realized revenue applies COALESCE(margin_rate, 1.0) so the metric matches the profit-based training label (PRD V2 §7.3).",
   bigquery: {
     partitionBy: "as_of_date",
     clusterBy: ["model_version"],
@@ -32,13 +32,14 @@ realized AS (
     p.model_version,
     p.predicted_rpc,
     -- Sum signed ledger rows so refunds reverse the realized total.
-    COALESCE(SUM(r.revenue), 0.0) AS actual_revenue
+    -- Apply margin_rate to match the profit-based training label.
+    COALESCE(SUM(r.revenue * COALESCE(r.margin_rate, 1.0)), 0.0) AS actual_revenue
   FROM preds p
   LEFT JOIN ${ref("sales_ledger")} r
     ON  r.click_id = p.click_id
     AND r.revenue_ts BETWEEN p.predicted_at
         AND TIMESTAMP_ADD(p.predicted_at,
-              INTERVAL ${dataform.projectConfig.vars.conversion_window_days || 30} DAY)
+              INTERVAL ${dataform.projectConfig.vars.conversion_window_days || 90} DAY)
   GROUP BY 1, 2, 3
 )
 SELECT

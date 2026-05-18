@@ -29,6 +29,8 @@ import scoring_pb2 as pb
 raw = binascii.unhexlify("$HEX")
 msg = pb.ScoreRequest.FromString(raw)
 assert msg.features.click_id == "c-rt", msg.features.click_id
-assert abs(msg.features.cerberus_score - 0.8) < 1e-9
+assert msg.features.vertical_id == "credit_cards", msg.features.vertical_id
+assert msg.features.product_type == "cashback", msg.features.product_type
+assert abs(msg.features.affinity_score - 0.7) < 1e-9
 print("parity OK")
 PY

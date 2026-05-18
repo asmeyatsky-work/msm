@@ -1,20 +1,24 @@
 // Plain-English translations of the engineering feature names so a non-technical
-// executive doesn't see 'cerberus_score' or 'rpc_14d' on the dashboard.
+// executive doesn't see 'affinity_score' or 'rpc_14d' on the dashboard.
+// Schema: PRD V2 (Credit Cards) §7.1.
 
 export const FEATURE_LABEL: Record<string, string> = {
-  hour_of_day:     "Hour of day",
-  cerberus_score:  "User trust score",
-  rpc_7d:          "Recent 7-day earnings",
-  rpc_14d:         "Recent 14-day earnings",
-  rpc_30d:         "Recent 30-day earnings",
-  is_payday_week:  "Payday week",
-  auction_pressure:"Auction competition",
-  visits_prev_30d: "Repeat visitor",
-  device:          "Device type",
-  geo:             "Country",
-  query_intent:    "Search intent",
-  ad_creative_id:  "Ad creative",
-  landing_path:    "Landing page",
+  hour_of_day:        "Hour of day",
+  affinity_score:     "Likely-to-apply score",
+  rpc_14d:            "Recent 14-day earnings",
+  rpc_60d:            "Recent 60-day earnings",
+  prior_applicant:    "Already applied before",
+  income_band_bucket: "Income band",
+  auction_pressure:   "Auction competition",
+  visits_prev_30d:    "Repeat visitor",
+  device:             "Device type",
+  geo:                "Country / region",
+  vertical_id:        "Product line",
+  product_type:       "Card type",
+  card_product_id:    "Card product",
+  query_intent:       "Search intent",
+  ad_creative_id:     "Ad creative",
+  landing_path:       "Landing page",
 };
 
 export function humanise(feature: string): string {

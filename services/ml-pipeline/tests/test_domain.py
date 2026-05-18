@@ -5,9 +5,13 @@ from msm_ml.domain import FeatureVector, DriftScore, DriftVerdict, ModelVersion
 
 def _fv(**overrides):
     base = dict(
-        click_id="c", device="mobile", geo="US", hour_of_day=10,
-        cerberus_score=0.8, rpc_7d=1.0, rpc_14d=1.0, rpc_30d=1.0,
-        is_payday_week=False, auction_pressure=0.5, visits_prev_30d=2,
+        click_id="c", vertical_id="credit_cards",
+        device="mobile", geo="GB", hour_of_day=10,
+        product_type="cashback", card_product_id="card-x",
+        query_intent="compare", affinity_score=0.7,
+        prior_applicant=False, income_band_bucket="mid",
+        auction_pressure=0.5, rpc_14d=1.0, rpc_60d=1.0,
+        visits_prev_30d=2,
     )
     base.update(overrides)
     return FeatureVector(**base)
@@ -15,18 +19,27 @@ def _fv(**overrides):
 
 def test_feature_vector_happy():
     fv = _fv()
-    assert fv.as_map()["rpc_7d"] == 1.0
+    assert fv.as_map()["rpc_14d"] == 1.0
+    assert fv.as_map()["product_type"] == "cashback"
 
 
 @pytest.mark.parametrize("field,value", [
     ("hour_of_day", 24),
-    ("cerberus_score", 1.5),
-    ("rpc_7d", -0.1),
+    ("affinity_score", 1.5),
+    ("rpc_14d", -0.1),
     ("click_id", ""),
+    ("vertical_id", ""),
+    ("product_type", ""),
+    ("income_band_bucket", "vip"),
 ])
 def test_feature_vector_rejects(field, value):
     with pytest.raises(ValueError):
         _fv(**{field: value})
+
+
+def test_feature_vector_accepts_null_income_band():
+    fv = _fv(income_band_bucket=None)
+    assert fv.as_map()["income_band_bucket"] is None
 
 
 def test_drift_verdicts():

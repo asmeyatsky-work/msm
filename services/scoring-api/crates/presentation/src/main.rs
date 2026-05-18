@@ -30,23 +30,59 @@ struct AppState {
     explain: Arc<ExplainClick>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 struct ScoreRequest {
     click_id: String,
     correlation_id: String,
+    #[serde(default = "default_vertical")]
+    vertical_id: String,
     device: String,
     geo: String,
     hour_of_day: i32,
+    product_type: String,
+    card_product_id: String,
     query_intent: String,
+    affinity_score: f64,
     ad_creative_id: String,
-    cerberus_score: f64,
-    rpc_7d: f64,
-    rpc_14d: f64,
-    rpc_30d: f64,
-    is_payday_week: bool,
+    prior_applicant: bool,
+    #[serde(default)]
+    income_band_bucket: Option<String>,
     auction_pressure: f64,
+    rpc_14d: f64,
+    rpc_60d: f64,
     landing_path: String,
     visits_prev_30d: u32,
+}
+
+fn default_vertical() -> String {
+    "credit_cards".into()
+}
+
+impl ScoreRequest {
+    fn into_input(self) -> ClickFeaturesInput {
+        ClickFeaturesInput {
+            click_id: self.click_id,
+            correlation_id: self.correlation_id,
+            vertical_id: self.vertical_id,
+            device: self.device,
+            geo: self.geo,
+            hour_of_day: self.hour_of_day,
+            product_type: self.product_type,
+            card_product_id: self.card_product_id,
+            query_intent: self.query_intent,
+            affinity_score: self.affinity_score,
+            ad_creative_id: self.ad_creative_id,
+            prior_applicant: self.prior_applicant,
+            income_band_bucket: self
+                .income_band_bucket
+                .and_then(|s| if s.is_empty() { None } else { Some(s) }),
+            auction_pressure: self.auction_pressure,
+            rpc_14d: self.rpc_14d,
+            rpc_60d: self.rpc_60d,
+            landing_path: self.landing_path,
+            visits_prev_30d: self.visits_prev_30d,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -63,24 +99,8 @@ async fn score_handler(
     Json(req): Json<ScoreRequest>,
 ) -> Result<Json<ScoreResponse>, (StatusCode, String)> {
     // §4: Reject-by-default via domain constructor invariants.
-    let features = ClickFeatures::try_new(ClickFeaturesInput {
-        click_id: req.click_id,
-        correlation_id: req.correlation_id,
-        device: req.device,
-        geo: req.geo,
-        hour_of_day: req.hour_of_day,
-        query_intent: req.query_intent,
-        ad_creative_id: req.ad_creative_id,
-        cerberus_score: req.cerberus_score,
-        rpc_7d: req.rpc_7d,
-        rpc_14d: req.rpc_14d,
-        rpc_30d: req.rpc_30d,
-        is_payday_week: req.is_payday_week,
-        auction_pressure: req.auction_pressure,
-        landing_path: req.landing_path,
-        visits_prev_30d: req.visits_prev_30d,
-    })
-    .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let features = ClickFeatures::try_new(req.into_input())
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let pred = state
         .use_case
@@ -108,24 +128,9 @@ async fn explain_handler(
     State(state): State<AppState>,
     Json(req): Json<ScoreRequest>,
 ) -> Result<Json<ExplainResponse>, (StatusCode, String)> {
-    let features = ClickFeatures::try_new(ClickFeaturesInput {
-        click_id: req.click_id.clone(),
-        correlation_id: req.correlation_id,
-        device: req.device,
-        geo: req.geo,
-        hour_of_day: req.hour_of_day,
-        query_intent: req.query_intent,
-        ad_creative_id: req.ad_creative_id,
-        cerberus_score: req.cerberus_score,
-        rpc_7d: req.rpc_7d,
-        rpc_14d: req.rpc_14d,
-        rpc_30d: req.rpc_30d,
-        is_payday_week: req.is_payday_week,
-        auction_pressure: req.auction_pressure,
-        landing_path: req.landing_path,
-        visits_prev_30d: req.visits_prev_30d,
-    })
-    .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let click_id_echo = req.click_id.clone();
+    let features = ClickFeatures::try_new(req.into_input())
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let a = state
         .explain
@@ -133,7 +138,7 @@ async fn explain_handler(
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     Ok(Json(ExplainResponse {
-        click_id: req.click_id,
+        click_id: click_id_echo,
         base_value: a.base_value,
         contributions: a.contributions,
     }))

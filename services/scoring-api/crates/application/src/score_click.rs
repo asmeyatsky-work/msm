@@ -417,17 +417,20 @@ mod tests {
         ClickFeatures::try_new(ClickFeaturesInput {
             click_id: "c".into(),
             correlation_id: "t".into(),
+            vertical_id: "credit_cards".into(),
             device: "m".into(),
-            geo: "US".into(),
+            geo: "GB".into(),
             hour_of_day: 10,
-            query_intent: "x".into(),
+            product_type: "cashback".into(),
+            card_product_id: "card-x".into(),
+            query_intent: "compare".into(),
+            affinity_score: 0.7,
             ad_creative_id: "a".into(),
-            cerberus_score: 0.9,
-            rpc_7d: 1.0,
-            rpc_14d: 1.0,
-            rpc_30d: 1.0,
-            is_payday_week: false,
+            prior_applicant: false,
+            income_band_bucket: None,
             auction_pressure: 0.5,
+            rpc_14d: 1.0,
+            rpc_60d: 1.0,
             landing_path: "/".into(),
             visits_prev_30d: 1,
         })
@@ -487,9 +490,8 @@ mod tests {
         let mut deps = deps_with(Arc::new(StaticModel(4.0)), false, (0.1, 100.0));
         deps.feature_store = Some(Arc::new(StaticStore(
             msm_scoring_domain::ports::FeatureOverrides {
-                rpc_7d: Some(9.9),
-                rpc_14d: None,
-                rpc_30d: None,
+                rpc_14d: Some(9.9),
+                rpc_60d: None,
                 visits_prev_30d: Some(42),
             },
         )));

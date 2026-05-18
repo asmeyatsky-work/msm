@@ -27,19 +27,23 @@ mcp = FastMCP("msm-scoring")
 
 
 class ScoreInput(BaseModel):
+    """Scoring input. Schema: PRD V2 (Credit Cards) §7.1."""
     click_id: str = Field(min_length=1)
     correlation_id: str
+    vertical_id: str = "credit_cards"
     device: str
     geo: str
     hour_of_day: int = Field(ge=0, le=23)
+    product_type: str
+    card_product_id: str
     query_intent: str
+    affinity_score: float = Field(ge=0.0, le=1.0)
     ad_creative_id: str
-    cerberus_score: float = Field(ge=0.0, le=1.0)
-    rpc_7d: float = Field(ge=0.0)
+    prior_applicant: bool
+    income_band_bucket: str | None = None
+    auction_pressure: float = Field(ge=0.0, le=1.0)
     rpc_14d: float = Field(ge=0.0)
-    rpc_30d: float = Field(ge=0.0)
-    is_payday_week: bool
-    auction_pressure: float
+    rpc_60d: float = Field(ge=0.0)
     landing_path: str
     visits_prev_30d: int = Field(ge=0)
 

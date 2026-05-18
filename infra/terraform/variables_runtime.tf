@@ -69,7 +69,7 @@ variable "dashboard_min_instances" {
 }
 
 variable "reconciliation_window_days" {
-  description = "Days a prediction stays 'in flight' before its reconciliation window closes. ADR 0003 sets this to 90 for Credit Cards; generic e-commerce uses 30."
+  description = "Days a prediction stays 'in flight' before its reconciliation window closes. ADR 0003 sets this to 90 for Credit Cards (the MVP target). Override per-env via tfvars if a vertical needs a shorter window."
   type        = number
-  default     = 30
+  default     = 90
 }

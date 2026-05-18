@@ -37,11 +37,10 @@ impl ExplainEndpoint for VertexExplain {
         let body = serde_json::json!({
             "instances": [[
                 features.hour_of_day() as f64,
-                features.cerberus_score(),
-                features.rpc_7d(),
+                features.affinity_score(),
                 features.rpc_14d(),
-                features.rpc_30d(),
-                if features.is_payday_week() { 1.0 } else { 0.0 },
+                features.rpc_60d(),
+                if features.prior_applicant() { 1.0 } else { 0.0 },
                 features.auction_pressure(),
                 features.visits_prev_30d() as f64,
             ]]
@@ -66,19 +65,18 @@ impl ExplainEndpoint for VertexExplain {
             .map_err(|e| PortError::Upstream(e.to_string()))?;
         // Vertex AI explain response. Two shapes are seen in the wild:
         //   (A) per-feature scalars (one named input per feature):
-        //       "featureAttributions": {"hour_of_day": 0.3, "rpc_7d": 1.2, ...}
+        //       "featureAttributions": {"hour_of_day": 0.3, "rpc_14d": 1.2, ...}
         //   (B) one named input ("features") with `index_feature_mapping`,
         //       attributions returned as a parallel array:
         //       "featureAttributions": {"features": [0.3, 1.2, ...]}
         // The deployed `rpc-estimator` model uses shape (B); we still accept
         // (A) so the integration tests' fake Vertex stays valid.
-        const FEATURE_NAMES: [&str; 8] = [
+        const FEATURE_NAMES: [&str; 7] = [
             "hour_of_day",
-            "cerberus_score",
-            "rpc_7d",
+            "affinity_score",
             "rpc_14d",
-            "rpc_30d",
-            "is_payday_week",
+            "rpc_60d",
+            "prior_applicant",
             "auction_pressure",
             "visits_prev_30d",
         ];

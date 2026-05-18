@@ -17,7 +17,8 @@ const useCase = new LoadReconciliation(gateway);
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WINDOW_OPTIONS = [7, 30, 90] as const;
 type WindowDays = (typeof WINDOW_OPTIONS)[number];
-const DEFAULT_WINDOW_DAYS: WindowDays = 7;
+// CC reconciliation window is 90 days (PRD V2 §4.5).
+const DEFAULT_WINDOW_DAYS: WindowDays = 90;
 
 type Status = { kind: "loading" } | { kind: "ready" } | { kind: "error"; msg: string };
 
@@ -323,31 +324,45 @@ function Health({ label, detail, ok }: { label: string; detail: string; ok: bool
 
 // ── Live prediction card ───────────────────────────────────────────────
 
+// Schema: PRD V2 (Credit Cards) §7.1.
+type ProductType =
+  | "cashback" | "travel" | "balance_transfer" | "premium"
+  | "student" | "business" | "secured";
+type QueryIntent =
+  | "compare" | "shop" | "apply" | "research" | "navigational";
+type IncomeBand = "" | "low" | "mid" | "high";
+
 interface PredictForm {
+  vertical_id: "credit_cards";
   device: "mobile" | "desktop" | "tablet";
   geo: "GB" | "US" | "DE" | "FR";
   hour_of_day: number;
-  query_intent: "commercial" | "navigational" | "informational";
-  cerberus_score: number;
-  rpc_7d: number;
-  rpc_14d: number;
-  rpc_30d: number;
+  product_type: ProductType;
+  card_product_id: string;
+  query_intent: QueryIntent;
+  affinity_score: number;
+  prior_applicant: boolean;
+  income_band_bucket: IncomeBand;
   auction_pressure: number;
-  is_payday_week: boolean;
+  rpc_14d: number;
+  rpc_60d: number;
   visits_prev_30d: number;
 }
 
 const DEFAULTS: PredictForm = {
+  vertical_id: "credit_cards",
   device: "mobile",
   geo: "GB",
   hour_of_day: 14,
-  query_intent: "commercial",
-  cerberus_score: 0.62,
-  rpc_7d: 1.85,
-  rpc_14d: 1.92,
-  rpc_30d: 1.78,
+  product_type: "cashback",
+  card_product_id: "card-amex-blue",
+  query_intent: "compare",
+  affinity_score: 0.7,
+  prior_applicant: false,
+  income_band_bucket: "mid",
   auction_pressure: 0.55,
-  is_payday_week: false,
+  rpc_14d: 1.92,
+  rpc_60d: 1.78,
   visits_prev_30d: 3,
 };
 
@@ -527,32 +542,60 @@ function LivePredictionCard() {
           <input type="number" min={0} max={23} step={1} style={inputStyle}
                  value={form.hour_of_day}
                  onChange={(e) => update("hour_of_day", Math.min(23, Math.max(0, parseInt(e.target.value || "0"))))} /></div>
+        <div><label style={labelStyle}>Card type they're looking at</label>
+          <select style={inputStyle} value={form.product_type}
+                  onChange={(e) => update("product_type", e.target.value as ProductType)}>
+            <option value="cashback">Cashback</option>
+            <option value="travel">Travel rewards</option>
+            <option value="balance_transfer">Balance transfer</option>
+            <option value="premium">Premium</option>
+            <option value="student">Student</option>
+            <option value="business">Business</option>
+            <option value="secured">Secured</option>
+          </select></div>
+        <div><label style={labelStyle}>Specific card product</label>
+          <input type="text" style={inputStyle}
+                 value={form.card_product_id}
+                 onChange={(e) => update("card_product_id", e.target.value)} /></div>
         <div><label style={labelStyle}>What were they searching for?</label>
           <select style={inputStyle} value={form.query_intent}
-                  onChange={(e) => update("query_intent", e.target.value as PredictForm["query_intent"])}>
-            <option value="commercial">Ready to buy</option>
+                  onChange={(e) => update("query_intent", e.target.value as QueryIntent)}>
+            <option value="compare">Comparing options</option>
+            <option value="shop">Shopping for the best deal</option>
+            <option value="apply">Ready to apply</option>
+            <option value="research">Just researching</option>
             <option value="navigational">Looking for a brand</option>
-            <option value="informational">Just researching</option>
           </select></div>
-        <div><label style={labelStyle}>How much do we trust this user? (0–1)</label>
+        <div><label style={labelStyle}>How likely are they to apply? (0–1)</label>
           <input type="number" min={0} max={1} step={0.01} style={inputStyle}
-                 value={form.cerberus_score}
-                 onChange={(e) => update("cerberus_score", parseFloat(e.target.value || "0"))} /></div>
+                 value={form.affinity_score}
+                 onChange={(e) => update("affinity_score", parseFloat(e.target.value || "0"))} /></div>
+        <div><label style={labelStyle}>Have they applied for a card before?</label>
+          <select style={inputStyle} value={form.prior_applicant ? "yes" : "no"}
+                  onChange={(e) => update("prior_applicant", e.target.value === "yes")}>
+            <option value="no">No</option>
+            <option value="yes">Yes</option>
+          </select></div>
+        <div><label style={labelStyle}>Income band (optional)</label>
+          <select style={inputStyle} value={form.income_band_bucket}
+                  onChange={(e) => update("income_band_bucket", e.target.value as IncomeBand)}>
+            <option value="">Unknown</option>
+            <option value="low">Low</option>
+            <option value="mid">Mid</option>
+            <option value="high">High</option>
+          </select></div>
         <div><label style={labelStyle}>How crowded was the ad auction? (0–1)</label>
           <input type="number" min={0} max={1} step={0.01} style={inputStyle}
                  value={form.auction_pressure}
                  onChange={(e) => update("auction_pressure", parseFloat(e.target.value || "0"))} /></div>
-        <div><label style={labelStyle}>Recent earnings: 7 / 14 / 30 days (£)</label>
+        <div><label style={labelStyle}>Recent earnings: 14 / 60 days (£)</label>
           <div style={{ display: "flex", gap: 6 }}>
-            <input type="number" step={0.01} style={inputStyle}
-                   value={form.rpc_7d}
-                   onChange={(e) => update("rpc_7d", parseFloat(e.target.value || "0"))} />
             <input type="number" step={0.01} style={inputStyle}
                    value={form.rpc_14d}
                    onChange={(e) => update("rpc_14d", parseFloat(e.target.value || "0"))} />
             <input type="number" step={0.01} style={inputStyle}
-                   value={form.rpc_30d}
-                   onChange={(e) => update("rpc_30d", parseFloat(e.target.value || "0"))} />
+                   value={form.rpc_60d}
+                   onChange={(e) => update("rpc_60d", parseFloat(e.target.value || "0"))} />
           </div>
         </div>
         <div><label style={labelStyle}>Repeat visits in the last 30 days</label>

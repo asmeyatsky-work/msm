@@ -238,6 +238,16 @@ V2 changes:
    - `dataform/definitions/training/rpc_training_rows.sqlx`.
    - `dashboard/src/presentation/App.tsx` form fields.
    - `dashboard/src/presentation/labels.ts` humanisation.
+   - **`vertical_id` added as a top-level required field** across every
+     layer above. For Credit Cards MVP the only emitted value is
+     `"credit_cards"`, but the column, proto field, request param, view
+     column, and model registry namespace
+     (`rpc-estimator/credit-cards@N`) are all in place so a second
+     vertical does not trigger a second cross-cutting migration. Cost
+     here is ~half a day on top of the CC schema work; deferring it
+     costs the same migration twice. Anticipates
+     `docs/PRD-v2-strategy-alignment.md` §4 (S1) — that phase
+     disappears if this lands.
 6. **Active-versions dashboard panel** for the canary path.
 
 ---
@@ -253,6 +263,7 @@ Per `docs/data-contract-credit-cards.md §3`. New fields vs V1
 click_id              STRING REQUIRED
 correlation_id        STRING REQUIRED
 click_ts              TIMESTAMP REQUIRED (partition)
+**vertical_id**       STRING REQUIRED (always "credit_cards" at MVP; reserved for multi-vertical roll-out)
 device                STRING REQUIRED
 geo                   STRING REQUIRED
 hour_of_day           INT64 REQUIRED
@@ -281,6 +292,7 @@ click_id         STRING REQUIRED (joins click feed)
 event_ts         TIMESTAMP REQUIRED (partition)
 **stage**        STRING REQUIRED (application_started / application_submitted / approved / activated / first_spend / chargeback)
 revenue          FLOAT64 REQUIRED (signed; negative for chargebacks)
+**margin_rate**  FLOAT64 NULLABLE  [0..1]  -- COALESCEs to 1.0 in the label view until Soteria delivers
 currency         STRING REQUIRED (GBP only at MVP)
 card_product_id  STRING REQUIRED
 ```
@@ -290,7 +302,16 @@ card_product_id  STRING REQUIRED
 - `cm360_clicks` (typed from `cm360_clicks_raw`).
 - `rpc_predictions` (typed from `rpc_predictions_raw`).
 - `predictions_vs_revenue` — joined view; 90-day window; one row per
-  click; `realized_rpc = SUM(revenue)` over the window (ADR 0003).
+  click; `realized_rpc = SUM(revenue * COALESCE(margin_rate, 1.0))`
+  over the window (ADR 0003). The `margin_rate` column is added to the
+  sales-ledger feed as **NULLABLE FLOAT64** for the CC MVP; while the
+  client has not supplied a commission table, all rows coalesce to 1.0
+  and `realized_rpc` equals `SUM(revenue)` (V1 behaviour, unchanged).
+  Once the Soteria margin table is delivered (per
+  `docs/PRD-v2-strategy-alignment.md` §5.2 / S2), populating
+  `margin_rate` is a data-only change — no view rewrite, no schema
+  migration, and the existing model can be retrained against the new
+  label without touching the API contract.
 - `rpc_training_rows` — features joined to labels, used by the
   training pipeline.
 - `coverage_audit` — sliced coverage %.

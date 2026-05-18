@@ -46,9 +46,8 @@ pub trait FeatureStore: Send + Sync {
 
 #[derive(Debug, Clone, Default)]
 pub struct FeatureOverrides {
-    pub rpc_7d: Option<f64>,
     pub rpc_14d: Option<f64>,
-    pub rpc_30d: Option<f64>,
+    pub rpc_60d: Option<f64>,
     pub visits_prev_30d: Option<u32>,
 }
 

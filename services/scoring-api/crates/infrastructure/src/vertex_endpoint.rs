@@ -39,17 +39,16 @@ impl ModelEndpoint for VertexEndpoint {
         let token = self.tokens.token().await.map_err(PortError::Upstream)?;
         // Vertex AI prebuilt xgboost-cpu container expects a 2D numeric array.
         // Feature order MUST match training (see services/ml-pipeline/.../xgboost_trainer.py
-        // _FEATURE_ORDER and ops/deploy_real_model.py feature_cols):
-        //   hour_of_day, cerberus_score, rpc_7d, rpc_14d, rpc_30d,
-        //   is_payday_week, auction_pressure, visits_prev_30d
+        // _FEATURE_ORDER). CC schema (PRD V2 §7.1):
+        //   hour_of_day, affinity_score, rpc_14d, rpc_60d,
+        //   prior_applicant, auction_pressure, visits_prev_30d
         let body = serde_json::json!({
             "instances": [[
                 features.hour_of_day() as f64,
-                features.cerberus_score(),
-                features.rpc_7d(),
+                features.affinity_score(),
                 features.rpc_14d(),
-                features.rpc_30d(),
-                if features.is_payday_week() { 1.0 } else { 0.0 },
+                features.rpc_60d(),
+                if features.prior_applicant() { 1.0 } else { 0.0 },
                 features.auction_pressure(),
                 features.visits_prev_30d() as f64,
             ]]

@@ -26,7 +26,15 @@ class _Monitor:
 
 
 def _fv():
-    return FeatureVector("c", "m", "US", 1, 0.5, 1, 1, 1, False, 0.5, 1)
+    return FeatureVector(
+        click_id="c", vertical_id="credit_cards",
+        device="m", geo="GB", hour_of_day=1,
+        product_type="cashback", card_product_id="card-x",
+        query_intent="compare", affinity_score=0.5,
+        prior_applicant=False, income_band_bucket=None,
+        auction_pressure=0.5, rpc_14d=1.0, rpc_60d=1.0,
+        visits_prev_30d=1,
+    )
 
 
 def test_train_model_end_to_end():

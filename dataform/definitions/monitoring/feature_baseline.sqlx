@@ -1,7 +1,7 @@
 config {
   type: "table",
   schema: "rpc_estimator",
-  description: "Per-model-version feature distribution snapshot. Materialised once per train; PSI compares live click features against this baseline. Rebuilt by ml-pipeline-train when a new model is registered.",
+  description: "Per-model-version feature distribution snapshot. Materialised once per train; PSI compares live click features against this baseline. Rebuilt by ml-pipeline-train when a new model is registered. Schema: PRD V2 (Credit Cards) §7.1 numeric features.",
   bigquery: {
     clusterBy: ["model_version", "feature"],
   },
@@ -20,13 +20,12 @@ WITH features AS (
     value
   FROM ${ref("rpc_training_rows")},
   UNNEST([
-    STRUCT("cerberus_score"   AS feature, cerberus_score    AS value),
-    STRUCT("rpc_7d",                       rpc_7d),
-    STRUCT("rpc_14d",                      rpc_14d),
-    STRUCT("rpc_30d",                      rpc_30d),
-    STRUCT("hour_of_day",                  CAST(hour_of_day AS FLOAT64)),
-    STRUCT("auction_pressure",             auction_pressure),
-    STRUCT("visits_prev_30d",              CAST(visits_prev_30d AS FLOAT64))
+    STRUCT("affinity_score"  AS feature, affinity_score AS value),
+    STRUCT("rpc_14d",                    rpc_14d),
+    STRUCT("rpc_60d",                    rpc_60d),
+    STRUCT("hour_of_day",                CAST(hour_of_day AS FLOAT64)),
+    STRUCT("auction_pressure",           auction_pressure),
+    STRUCT("visits_prev_30d",            CAST(visits_prev_30d AS FLOAT64))
   ])
 ),
 ranked AS (
