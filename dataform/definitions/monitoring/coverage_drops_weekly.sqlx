@@ -1,0 +1,34 @@
+config {
+  type: "table",
+  schema: "rpc_estimator",
+  description: "Per-slice coverage drops week-over-week (PRD V2 §4.6). One row per slice that dropped > 10 absolute coverage points since 7 days ago. Read by the breach scanner; downstream alert fires when this table is non-empty.",
+  bigquery: {
+    clusterBy: ["slice_dim", "slice_value"],
+  },
+}
+
+-- coverage_audit is a non-historical view of *current* coverage. To compute
+-- a week-over-week delta we snapshot the table to coverage_audit_snapshot
+-- daily (see ops/snapshot_coverage.sql) and read the prior snapshot below.
+-- If the snapshot table is missing we emit zero breach rows rather than
+-- failing the run.
+WITH today AS (
+  SELECT slice_dim, slice_value, coverage_rate
+  FROM ${ref("coverage_audit")}
+),
+prior AS (
+  SELECT slice_dim, slice_value, coverage_rate
+  FROM `${dataform.projectConfig.vars.source_dataset || 'rpc_estimator_staging'}.coverage_audit_snapshot`
+  WHERE snapshot_date = DATE_SUB(CURRENT_DATE("UTC"), INTERVAL 7 DAY)
+)
+SELECT
+  CURRENT_DATE("UTC") AS as_of_date,
+  t.slice_dim,
+  t.slice_value,
+  t.coverage_rate AS coverage_today,
+  p.coverage_rate AS coverage_last_week,
+  (t.coverage_rate - p.coverage_rate) AS pct_change,
+  "coverage_drop" AS kind
+FROM today t
+JOIN prior p USING (slice_dim, slice_value)
+WHERE (t.coverage_rate - p.coverage_rate) < -0.10

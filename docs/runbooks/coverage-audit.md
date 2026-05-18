@@ -115,6 +115,12 @@ days.
 ## Related
 
 - `coverage_audit.sqlx` — the materialising view.
+- `coverage_drops_weekly.sqlx` — W-o-W breach rows; what the *coverage drop*
+  alert pages on.
+- `drift_breaches_weekly.sqlx` — companion view for per-segment residual
+  MAE drift breaches. Look here when a drift alert lands.
+- `ops/breach_emitter.py` — daily script that turns breach rows into log
+  lines counted by the Cloud Monitoring metrics.
 - `predictions_vs_revenue` — the joined view that drives the residuals.
 - `docs/data-contract-credit-cards.md §3` — sales-ledger join key.
 - `docs/PRD-v2-credit-cards.md §11` — the systematic-missingness risk.

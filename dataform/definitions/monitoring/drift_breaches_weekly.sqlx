@@ -1,0 +1,36 @@
+config {
+  type: "table",
+  schema: "rpc_estimator",
+  description: "Per-segment residual MAE drift breaches week-over-week (PRD V2 §4.6). One row per segment that exceeded the 25% threshold today vs the same day last week. Read by the breach scanner; downstream alert fires when this table is non-empty.",
+  bigquery: {
+    clusterBy: ["model_version", "product_type"],
+  },
+}
+
+WITH this_week AS (
+  SELECT model_version, product_type, device, geo, mae
+  FROM ${ref("residuals_by_segment")}
+  WHERE as_of_date = DATE_SUB(CURRENT_DATE("UTC"), INTERVAL 1 DAY)
+    AND mae IS NOT NULL
+),
+last_week AS (
+  SELECT model_version, product_type, device, geo, mae
+  FROM ${ref("residuals_by_segment")}
+  WHERE as_of_date = DATE_SUB(CURRENT_DATE("UTC"), INTERVAL 8 DAY)
+    AND mae IS NOT NULL
+)
+SELECT
+  CURRENT_DATE("UTC") AS as_of_date,
+  t.model_version,
+  t.product_type,
+  t.device,
+  t.geo,
+  t.mae AS mae_today,
+  l.mae AS mae_last_week,
+  SAFE_DIVIDE(t.mae - l.mae, l.mae) AS pct_change,
+  "drift_breach" AS kind
+FROM this_week t
+JOIN last_week l
+  USING (model_version, product_type, device, geo)
+WHERE l.mae > 0
+  AND SAFE_DIVIDE(t.mae - l.mae, l.mae) > 0.25

@@ -186,3 +186,134 @@ resource "google_monitoring_slo" "scoring_api_availability" {
     }
   }
 }
+
+# --- PRD V2 §4.6 — CC drift + coverage alerts ---------------------------------
+# Per-segment residual MAE drift > 25% W-o-W and per-slice coverage drop > 10%
+# W-o-W. The breach detection is materialised by Dataform in two tables:
+#   * rpc_estimator.drift_breaches_weekly
+#   * rpc_estimator.coverage_drops_weekly
+# A daily emitter (ops/breach_emitter.py, scheduled via Cloud Scheduler →
+# breaker-automation) writes one structured-log line per breach row with
+# the field jsonPayload.alert.kind set to "drift_breach" or "coverage_drop".
+# The two log-based metrics below count those lines; the alert policies
+# fire when the count crosses 0 within the alignment window.
+#
+# Until the emitter is scheduled the metrics stay at zero and the policies
+# are silent — same pattern as breaker_trips. This means the alerting
+# *structure* is deployable today; flipping it on is a Cloud Scheduler
+# addition once a notification channel is wired (OQ-2 / OQ-9).
+
+resource "google_logging_metric" "drift_breaches" {
+  name        = "rpc_drift_breaches_${var.env}"
+  description = "Count of per-segment MAE drift breaches emitted by the breach scanner (ops/breach_emitter.py)."
+  filter      = <<-EOT
+    logName="projects/${var.project_id}/logs/rpc-breach-emitter-${var.env}"
+    severity>=WARNING
+    jsonPayload.alert.kind="drift_breach"
+  EOT
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    unit        = "1"
+    labels {
+      key         = "product_type"
+      value_type  = "STRING"
+      description = "PRD V2 §7.1 product_type of the breaching segment."
+    }
+  }
+  label_extractors = {
+    "product_type" = "EXTRACT(jsonPayload.alert.product_type)"
+  }
+}
+
+resource "google_logging_metric" "coverage_drops" {
+  name        = "rpc_coverage_drops_${var.env}"
+  description = "Count of per-slice coverage drops emitted by the breach scanner (ops/breach_emitter.py)."
+  filter      = <<-EOT
+    logName="projects/${var.project_id}/logs/rpc-breach-emitter-${var.env}"
+    severity>=WARNING
+    jsonPayload.alert.kind="coverage_drop"
+  EOT
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    unit        = "1"
+    labels {
+      key         = "slice_dim"
+      value_type  = "STRING"
+      description = "Dimension of the coverage_audit slice (product_type, device, geo, ...)."
+    }
+  }
+  label_extractors = {
+    "slice_dim" = "EXTRACT(jsonPayload.alert.slice_dim)"
+  }
+}
+
+resource "google_monitoring_alert_policy" "drift_breach" {
+  display_name          = "rpc ${var.env} — per-segment MAE drift > 25% W-o-W"
+  combiner              = "OR"
+  notification_channels = var.alert_notification_channels
+
+  conditions {
+    display_name = "any drift breach in the last hour"
+    condition_threshold {
+      filter          = <<-EOT
+        metric.type="logging.googleapis.com/user/${google_logging_metric.drift_breaches.name}"
+        resource.type="global"
+      EOT
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+      aggregations {
+        alignment_period   = "3600s"
+        per_series_aligner = "ALIGN_SUM"
+      }
+    }
+  }
+
+  documentation {
+    mime_type = "text/markdown"
+    content   = <<-EOT
+      A per-segment residual MAE moved more than 25% week-over-week.
+      The breaching segments (model_version × product_type × device × geo)
+      are in `rpc_estimator.drift_breaches_weekly`. Investigate per
+      `docs/runbooks/coverage-audit.md §2-§4` if the segment also has a
+      coverage drop; otherwise treat as a model-quality signal and verify
+      against the residuals_daily chart on the dashboard.
+    EOT
+  }
+}
+
+resource "google_monitoring_alert_policy" "coverage_drop" {
+  display_name          = "rpc ${var.env} — coverage dropped > 10pp W-o-W on a slice"
+  combiner              = "OR"
+  notification_channels = var.alert_notification_channels
+
+  conditions {
+    display_name = "any coverage drop in the last hour"
+    condition_threshold {
+      filter          = <<-EOT
+        metric.type="logging.googleapis.com/user/${google_logging_metric.coverage_drops.name}"
+        resource.type="cloud_run_revision"
+      EOT
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+      aggregations {
+        alignment_period   = "3600s"
+        per_series_aligner = "ALIGN_SUM"
+      }
+    }
+  }
+
+  documentation {
+    mime_type = "text/markdown"
+    content   = <<-EOT
+      A `coverage_audit` slice lost more than 10 absolute coverage points
+      compared to the same day last week. Breaching slices are listed in
+      `rpc_estimator.coverage_drops_weekly`. Triage with
+      `docs/runbooks/coverage-audit.md` — random vs systematic determines
+      whether the alert blocks the next canary promotion.
+    EOT
+  }
+}
