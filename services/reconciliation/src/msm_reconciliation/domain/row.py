@@ -18,6 +18,12 @@ class ReconciliationRow:
     realized_rpc: float
     source: PredictionSource
     window_ends_at_ms: int
+    # PRD V2 §4.5 — surfaced through the API so the dashboard can filter by
+    # product_type and render the active-versions panel. Default to empty
+    # string for backwards-compatible test fixtures that don't set them.
+    vertical_id: str = "credit_cards"
+    product_type: str = ""
+    model_version: str = ""
 
     def __post_init__(self) -> None:
         if not self.click_id:

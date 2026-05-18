@@ -22,6 +22,9 @@ class MemoryReconciliationRepo(ReconciliationRepo):
                 realized_rpc=float(r["realized_rpc"]),
                 source=PredictionSource(r["source"]),
                 window_ends_at_ms=int(r["window_ends_at_ms"]),
+                vertical_id=r.get("vertical_id", "credit_cards"),
+                product_type=r.get("product_type", ""),
+                model_version=r.get("model_version", ""),
             )
             for r in raw
         ]

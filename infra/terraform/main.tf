@@ -107,6 +107,8 @@ resource "google_bigquery_table" "predictions_view" {
       SELECT
         JSON_EXTRACT_SCALAR(data, '$.click_id')       AS click_id,
         JSON_EXTRACT_SCALAR(data, '$.correlation_id') AS correlation_id,
+        COALESCE(JSON_EXTRACT_SCALAR(data, '$.vertical_id'), 'credit_cards') AS vertical_id,
+        JSON_EXTRACT_SCALAR(data, '$.product_type')   AS product_type,
         CAST(JSON_EXTRACT_SCALAR(data, '$.predicted_rpc') AS FLOAT64) AS predicted_rpc,
         JSON_EXTRACT_SCALAR(data, '$.source')         AS source,
         JSON_EXTRACT_SCALAR(data, '$.model_version')  AS model_version,
@@ -133,6 +135,8 @@ resource "google_bigquery_table" "predictions_vs_revenue_view" {
         SELECT
           click_id,
           correlation_id,
+          vertical_id,
+          product_type,
           predicted_rpc,
           source,
           model_version,
@@ -153,6 +157,8 @@ resource "google_bigquery_table" "predictions_vs_revenue_view" {
       SELECT
         p.click_id,
         p.correlation_id,
+        p.vertical_id,
+        p.product_type,
         p.predicted_rpc,
         COALESCE(r.realized_rpc, 0.0) AS realized_rpc,
         p.source,

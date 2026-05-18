@@ -188,6 +188,42 @@ jobs:
             curl -fsS -o /dev/null "$DASH/" && echo "  / ok"
           fi
 
+  deploy-client-cc:
+    # PRD V2 §6.2: Credit Cards client-isolated env. Opt-in:
+    # set repo variable DEPLOY_CLIENT_CC=true once OQ-1 resolves
+    # (client GCP project decision) and the secrets are wired:
+    #   GCP_WIF_PROVIDER_CLIENT_CC, GCP_CI_SA_CLIENT_CC,
+    #   vars.GCP_PROJECT_CLIENT_CC, secrets.TF_STATE_BUCKET_CLIENT_CC
+    # Until then, the job is a no-op so the workflow file stays in main
+    # without surprising the staging-only CD.
+    needs: [build-push, deploy-staging]
+    if: startsWith(github.ref, 'refs/tags/v') && vars.DEPLOY_CLIENT_CC == 'true'
+    runs-on: ubuntu-latest
+    environment: client-cc  # GitHub environment approval gate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_CLIENT_CC }}
+          service_account:            ${{ secrets.GCP_CI_SA_CLIENT_CC }}
+      - uses: hashicorp/setup-terraform@v3
+      - name: terraform apply client-cc
+        working-directory: infra/terraform
+        env:
+          TF_VAR_project_id:           ${{ vars.GCP_PROJECT_CLIENT_CC }}
+          TF_VAR_region:               europe-west2
+          TF_VAR_env:                  client-cc
+          TF_VAR_image_scoring_api:    ${{ needs.build-push.outputs.image_scoring_api }}
+          TF_VAR_image_reconciliation: ${{ needs.build-push.outputs.image_reconciliation }}
+          TF_VAR_image_activation:     ${{ needs.build-push.outputs.image_activation }}
+          TF_VAR_image_breaker:        ${{ needs.build-push.outputs.image_breaker }}
+          TF_VAR_image_ml_pipeline:    ${{ needs.build-push.outputs.image_ml_pipeline }}
+          TF_VAR_image_mock_vertex:    ${{ needs.build-push.outputs.image_mock_vertex }}
+          TF_VAR_image_dashboard:      ${{ needs.build-push.outputs.image_dashboard }}
+        run: |
+          terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET_CLIENT_CC }}"
+          terraform apply -auto-approve -lock-timeout=5m -var-file=envs/client-cc.tfvars
+
   deploy-prod:
     needs: [build-push, deploy-staging]
     # Prod opt-in: set repo variable DEPLOY_PROD=true only when prod

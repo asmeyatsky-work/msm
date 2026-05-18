@@ -4,13 +4,19 @@
     "predicted_rpc": 2.5,
     "realized_rpc": 2.8,
     "source": "MODEL",
-    "window_ends_at_ms": 1
+    "window_ends_at_ms": 1,
+    "vertical_id": "credit_cards",
+    "product_type": "cashback",
+    "model_version": "rpc-estimator/credit-cards@1"
   },
   {
     "click_id": "e2e-rec-2",
     "predicted_rpc": 0.0,
     "realized_rpc": 3.1,
     "source": "FALLBACK_TCPA",
-    "window_ends_at_ms": 2
+    "window_ends_at_ms": 2,
+    "vertical_id": "credit_cards",
+    "product_type": "travel",
+    "model_version": "rpc-estimator/credit-cards@1"
   }
 ]

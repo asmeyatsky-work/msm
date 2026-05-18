@@ -219,6 +219,8 @@ async fn pubsub_predictions_publishes_message_payload() {
     sink.record(PredictionRecord {
         click_id: "c-1".into(),
         correlation_id: "t".into(),
+        vertical_id: "credit_cards".into(),
+        product_type: "cashback".into(),
         predicted_rpc: 2.5,
         source: "MODEL",
         model_version: "v1".into(),
@@ -248,6 +250,8 @@ async fn pubsub_predictions_surfaces_non_2xx() {
         .record(PredictionRecord {
             click_id: "c".into(),
             correlation_id: "t".into(),
+            vertical_id: "credit_cards".into(),
+            product_type: "cashback".into(),
             predicted_rpc: 1.0,
             source: "MODEL",
             model_version: "v".into(),

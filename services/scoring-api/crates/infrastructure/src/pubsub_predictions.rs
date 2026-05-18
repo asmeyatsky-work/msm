@@ -47,6 +47,8 @@ impl PredictionSink for PubSubPredictions {
         let data = serde_json::json!({
             "click_id": r.click_id,
             "correlation_id": r.correlation_id,
+            "vertical_id": r.vertical_id,
+            "product_type": r.product_type,
             "predicted_rpc": r.predicted_rpc,
             "source": r.source,
             "model_version": r.model_version,

@@ -17,7 +17,8 @@ class BigQueryReconciliationRepo(ReconciliationRepo):
 
     def fetch_window(self, start_ms: int, end_ms: int) -> Sequence[ReconciliationRow]:
         sql = f"""
-        SELECT click_id, predicted_rpc, realized_rpc, source, window_ends_at_ms
+        SELECT click_id, predicted_rpc, realized_rpc, source, window_ends_at_ms,
+               vertical_id, product_type, model_version
         FROM `{self._project}.{self._dataset}.predictions_vs_revenue`
         WHERE window_ends_at_ms BETWEEN @start_ms AND @end_ms
         """
@@ -36,6 +37,9 @@ class BigQueryReconciliationRepo(ReconciliationRepo):
                 realized_rpc=float(row["realized_rpc"]),
                 source=PredictionSource(row["source"]),
                 window_ends_at_ms=int(row["window_ends_at_ms"]),
+                vertical_id=row.get("vertical_id") or "credit_cards",
+                product_type=row.get("product_type") or "",
+                model_version=row.get("model_version") or "",
             )
             for row in job.result(timeout=self._query_timeout_s)
         ]

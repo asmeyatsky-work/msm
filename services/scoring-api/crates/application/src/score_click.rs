@@ -241,7 +241,7 @@ impl ScoreClick {
             model_version,
         );
         self.audit(&pred, "score.model").await;
-        self.log_prediction(&pred).await;
+        self.log_prediction(&pred, &features).await;
         Ok(pred)
     }
 
@@ -277,11 +277,11 @@ impl ScoreClick {
             "fallback",
         );
         self.audit(&pred, reason).await;
-        self.log_prediction(&pred).await;
+        self.log_prediction(&pred, features).await;
         Ok(pred)
     }
 
-    async fn log_prediction(&self, pred: &Prediction) {
+    async fn log_prediction(&self, pred: &Prediction, features: &ClickFeatures) {
         let source_str: &'static str = match pred.source() {
             PredictionSource::Model => "MODEL",
             PredictionSource::FallbackTcpa => "FALLBACK_TCPA",
@@ -297,6 +297,8 @@ impl ScoreClick {
             .record(PredictionRecord {
                 click_id: pred.click_id().as_str().into(),
                 correlation_id: pred.correlation_id().as_str().into(),
+                vertical_id: features.vertical_id().into(),
+                product_type: features.product_type().into(),
                 predicted_rpc: pred.rpc().value(),
                 source: source_str,
                 model_version: pred.model_version().into(),

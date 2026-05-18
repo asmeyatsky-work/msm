@@ -86,6 +86,8 @@ pub trait PredictionSink: Send + Sync {
 pub struct PredictionRecord {
     pub click_id: String,
     pub correlation_id: String,
+    pub vertical_id: String,
+    pub product_type: String,
     pub predicted_rpc: f64,
     pub source: &'static str,
     pub model_version: String,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ReconciliationRow } from "../domain/reconciliation";
+import type { CoverageSlice, ReconciliationRow } from "../domain/reconciliation";
 import { residual } from "../domain/reconciliation";
 import { LoadReconciliation } from "../application/load-reconciliation";
 import { HttpReconciliationGateway } from "../infrastructure/http-gateway";
@@ -20,13 +20,32 @@ type WindowDays = (typeof WINDOW_OPTIONS)[number];
 // CC reconciliation window is 90 days (PRD V2 §4.5).
 const DEFAULT_WINDOW_DAYS: WindowDays = 90;
 
+// PRD V2 §7.1 product_type enum. "" = "All product types" — no filter.
+const PRODUCT_TYPES = [
+  "", "cashback", "travel", "balance_transfer", "premium", "student",
+  "business", "secured",
+] as const;
+type ProductFilter = (typeof PRODUCT_TYPES)[number];
+const PRODUCT_LABEL: Record<ProductFilter, string> = {
+  "": "All card types",
+  cashback: "Cashback",
+  travel: "Travel rewards",
+  balance_transfer: "Balance transfer",
+  premium: "Premium",
+  student: "Student",
+  business: "Business",
+  secured: "Secured",
+};
+
 type Status = { kind: "loading" } | { kind: "ready" } | { kind: "error"; msg: string };
 
 export function App() {
   const [rows, setRows] = useState<ReconciliationRow[]>([]);
+  const [coverage, setCoverage] = useState<CoverageSlice[]>([]);
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [windowDays, setWindowDays] = useState<WindowDays>(DEFAULT_WINDOW_DAYS);
+  const [productType, setProductType] = useState<ProductFilter>("");
   const range = useMemo(() => {
     const end = Date.now();
     return { start: end - windowDays * DAY_MS, end };
@@ -35,7 +54,7 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
     setStatus({ kind: "loading" });
-    useCase.execute(range.start, range.end, range.end)
+    useCase.execute(range.start, range.end, range.end, productType || undefined)
       .then(({ completed }) => {
         if (cancelled) return;
         setRows(completed);
@@ -49,7 +68,16 @@ export function App() {
         setStatus({ kind: "error", msg });
       });
     return () => { cancelled = true; };
-  }, [range.start, range.end, attempt]);
+  }, [range.start, range.end, attempt, productType]);
+
+  // Coverage is independent of the time window — refresh on every reload.
+  useEffect(() => {
+    let cancelled = false;
+    gateway.fetchCoverage()
+      .then((slices) => { if (!cancelled) setCoverage(slices); })
+      .catch(() => { if (!cancelled) setCoverage([]); });
+    return () => { cancelled = true; };
+  }, [attempt]);
 
   const k = useMemo(() => computeKpis(rows), [rows]);
   const daily = useMemo(() => groupByDay(rows, range.start, range.end), [rows, range]);
@@ -61,6 +89,11 @@ export function App() {
   const recent = useMemo(
     () => [...rows].sort((a, b) => b.windowEndsAtMs - a.windowEndsAtMs).slice(0, 15),
     [rows],
+  );
+  const activeVersions = useMemo(() => groupByModelVersion(rows), [rows]);
+  const coverageByProduct = useMemo(
+    () => coverage.filter((c) => c.sliceDim === "product_type"),
+    [coverage],
   );
 
   return (
@@ -103,6 +136,19 @@ export function App() {
               );
             })}
           </span>
+          <select
+            value={productType}
+            onChange={(e) => setProductType(e.target.value as ProductFilter)}
+            style={{
+              border: "1px solid var(--rule)", borderRadius: 4,
+              padding: "3px 8px", fontSize: 12, fontWeight: 600,
+              color: "var(--navy)", background: "#fff", cursor: "pointer",
+            }}
+          >
+            {PRODUCT_TYPES.map((p) => (
+              <option key={p || "all"} value={p}>{PRODUCT_LABEL[p]}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -140,8 +186,38 @@ export function App() {
                accent={k.mae <= 0.4 ? "green" : "red"} />
           <Kpi label="Clicks that converted"
                value={fmtPercent(k.coverage)}
-               caption="within the 30-day window" />
+               caption="within the 90-day window" />
         </section>
+
+        {coverageByProduct.length > 0 && (
+          <section className="row">
+            <div className="card">
+              <h3>Where we have full visibility</h3>
+              <div className="cardsub">
+                For every click we score, did the sales ledger come back with a
+                conversion row inside the 90-day window? When coverage is high
+                everywhere, the model trains on the same population it scores. Red
+                bars are slices where coverage is below 60% — those are where we
+                ask the data team to backfill before retraining.
+              </div>
+              <CoveragePanel slices={coverageByProduct} />
+            </div>
+          </section>
+        )}
+
+        {activeVersions.length > 1 && (
+          <section className="row">
+            <div className="card">
+              <h3>Model versions live right now</h3>
+              <div className="cardsub">
+                A canary deploy splits traffic across two model versions while we
+                watch their error side-by-side. Once the new version proves itself
+                we step traffic to 100% and decommission the older one.
+              </div>
+              <ActiveVersionsPanel versions={activeVersions} />
+            </div>
+          </section>
+        )}
 
         {/* Wow moment — moved up so the executive sees the live model first. */}
         <section className="row">
@@ -270,6 +346,120 @@ export function App() {
         Predictive RPC Estimator · Reconciliation dashboard · staging environment ·
         Data sourced from BigQuery <code>rpc_estimator_staging.predictions_vs_revenue</code>.
       </footer>
+    </div>
+  );
+}
+
+// ── Coverage panel (PRD V2 §4.5) ───────────────────────────────────────
+function CoveragePanel({ slices }: { slices: CoverageSlice[] }) {
+  // Sort lowest-coverage first so the executive's eye lands on problem slices.
+  const sorted = [...slices].sort((a, b) => a.coverageRate - b.coverageRate);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {sorted.map((s) => {
+        const pct = Math.max(0, Math.min(1, s.coverageRate));
+        const low = pct < 0.6;
+        return (
+          <div key={`${s.sliceDim}-${s.sliceValue}`}
+               style={{ display: "grid",
+                        gridTemplateColumns: "140px 1fr 80px 80px",
+                        gap: 10, alignItems: "center", fontSize: 12 }}>
+            <span style={{ color: "var(--navy)", fontWeight: 600 }}>
+              {s.sliceValue}
+            </span>
+            <div style={{
+              position: "relative", height: 14,
+              background: "var(--rule)", borderRadius: 3, overflow: "hidden",
+            }}>
+              <div style={{
+                position: "absolute", inset: 0, width: `${pct * 100}%`,
+                background: low ? "var(--red)" : "var(--teal)",
+              }} />
+            </div>
+            <span style={{ textAlign: "right",
+                           color: low ? "var(--red)" : "var(--navy)",
+                           fontWeight: 700,
+                           fontVariantNumeric: "tabular-nums" }}>
+              {fmtPercent(pct)}
+            </span>
+            <span style={{ textAlign: "right",
+                           color: "var(--muted)",
+                           fontVariantNumeric: "tabular-nums" }}>
+              {fmtInt(s.coveredClicks)} / {fmtInt(s.clicks)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Active versions panel (PRD V2 §4.5) ────────────────────────────────
+interface VersionStats {
+  modelVersion: string;
+  rows: number;
+  share: number;
+  mae: number;
+}
+
+function groupByModelVersion(rows: ReconciliationRow[]): VersionStats[] {
+  const groups = new Map<string, { rows: ReconciliationRow[] }>();
+  for (const r of rows) {
+    const k = r.modelVersion || "unknown";
+    const g = groups.get(k) ?? { rows: [] };
+    g.rows.push(r);
+    groups.set(k, g);
+  }
+  const total = rows.length || 1;
+  return Array.from(groups.entries()).map(([modelVersion, g]) => {
+    const settled = g.rows.filter((r) => r.realizedRpc > 0);
+    const mae = settled.length === 0
+      ? 0
+      : settled.reduce((s, r) => s + Math.abs(residual(r)), 0) / settled.length;
+    return {
+      modelVersion,
+      rows: g.rows.length,
+      share: g.rows.length / total,
+      mae,
+    };
+  }).sort((a, b) => b.share - a.share);
+}
+
+function ActiveVersionsPanel({ versions }: { versions: VersionStats[] }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {versions.map((v) => (
+        <div key={v.modelVersion}
+             style={{ display: "grid",
+                      gridTemplateColumns: "1fr 120px 100px 110px",
+                      gap: 10, alignItems: "center", fontSize: 12 }}>
+          <span className="mono"
+                style={{ color: "var(--navy)", fontWeight: 600 }}
+                title={v.modelVersion}>
+            {shorten(v.modelVersion, 40)}
+          </span>
+          <div style={{
+            position: "relative", height: 14,
+            background: "var(--rule)", borderRadius: 3, overflow: "hidden",
+          }}>
+            <div style={{
+              position: "absolute", inset: 0, width: `${v.share * 100}%`,
+              background: "var(--teal)",
+            }} />
+          </div>
+          <span style={{ textAlign: "right",
+                         color: "var(--navy)",
+                         fontWeight: 700,
+                         fontVariantNumeric: "tabular-nums" }}>
+            {fmtPercent(v.share)} of traffic
+          </span>
+          <span style={{ textAlign: "right",
+                         color: "var(--muted)",
+                         fontVariantNumeric: "tabular-nums" }}>
+            MAE {fmtCurrency(v.mae)}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

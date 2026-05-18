@@ -1,0 +1,58 @@
+config {
+  type: "incremental",
+  schema: "rpc_estimator",
+  description: "Per-segment residuals (product_type × device × geo). PRD V2 §4.6 alert input: per-segment residual MAE drift > 25% week-over-week triggers a drift alert on the drifting segment. Only MODEL-source predictions counted, only settled clicks (positive realized revenue).",
+  bigquery: {
+    partitionBy: "as_of_date",
+    clusterBy: ["model_version", "product_type", "device", "geo"],
+  },
+}
+
+pre_operations {
+  ${ when(incremental(),
+    `DELETE FROM ${self()}
+     WHERE as_of_date = DATE_SUB(CURRENT_DATE("UTC"), INTERVAL 1 DAY)`
+  ) }
+}
+
+WITH preds AS (
+  SELECT
+    JSON_EXTRACT_SCALAR(p.data, '$.click_id') AS click_id,
+    JSON_EXTRACT_SCALAR(p.data, '$.model_version') AS model_version,
+    JSON_EXTRACT_SCALAR(p.data, '$.product_type') AS product_type,
+    CAST(JSON_EXTRACT_SCALAR(p.data, '$.predicted_rpc') AS FLOAT64) AS predicted_rpc,
+    JSON_EXTRACT_SCALAR(p.data, '$.source') AS source,
+    TIMESTAMP_MILLIS(CAST(JSON_EXTRACT_SCALAR(p.data, '$.ts_ms') AS INT64)) AS predicted_at
+  FROM ${ref("rpc_predictions")} p
+  WHERE JSON_EXTRACT_SCALAR(p.data, '$.source') = "MODEL"
+    AND DATE(TIMESTAMP_MILLIS(CAST(JSON_EXTRACT_SCALAR(p.data, '$.ts_ms') AS INT64)), "UTC")
+        = DATE_SUB(CURRENT_DATE("UTC"), INTERVAL 1 DAY)
+),
+clicks AS (
+  SELECT click_id, device, geo
+  FROM ${ref("cm360_clicks")}
+),
+ledger AS (
+  SELECT
+    click_id,
+    SUM(revenue * COALESCE(margin_rate, 1.0)) AS realized_rpc
+  FROM ${ref("sales_ledger")}
+  GROUP BY click_id
+)
+SELECT
+  DATE_SUB(CURRENT_DATE("UTC"), INTERVAL 1 DAY) AS as_of_date,
+  p.model_version,
+  COALESCE(p.product_type, "unknown") AS product_type,
+  COALESCE(c.device, "unknown") AS device,
+  COALESCE(c.geo, "unknown") AS geo,
+  COUNT(*) AS scored_clicks,
+  COUNTIF(l.realized_rpc > 0) AS settled_clicks,
+  AVG(p.predicted_rpc) AS mean_predicted,
+  AVG(IFNULL(l.realized_rpc, 0)) AS mean_actual,
+  -- MAE only over settled clicks; an empty segment yields NULL.
+  AVG(IF(l.realized_rpc > 0, ABS(p.predicted_rpc - l.realized_rpc), NULL)) AS mae,
+  AVG(IF(l.realized_rpc > 0, p.predicted_rpc - l.realized_rpc, NULL)) AS mean_signed_residual
+FROM preds p
+LEFT JOIN clicks c USING (click_id)
+LEFT JOIN ledger l USING (click_id)
+GROUP BY model_version, product_type, device, geo

@@ -6,11 +6,16 @@ import type { ReconciliationGateway } from "./ports";
 export class LoadReconciliation {
   constructor(private readonly gateway: ReconciliationGateway) {}
 
-  async execute(startMs: number, endMs: number, nowMs: number): Promise<{
+  async execute(
+    startMs: number,
+    endMs: number,
+    nowMs: number,
+    productType?: string,
+  ): Promise<{
     completed: ReconciliationRow[];
     pending: ReconciliationRow[];
   }> {
-    const rows = await this.gateway.fetchWindow(startMs, endMs);
+    const rows = await this.gateway.fetchWindow(startMs, endMs, productType);
     const completed: ReconciliationRow[] = [];
     const pending: ReconciliationRow[] = [];
     for (const r of rows) (rowIsComplete(r, nowMs) ? completed : pending).push(r);
