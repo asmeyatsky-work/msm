@@ -1,10 +1,10 @@
 # PRD V2 — Predictive RPC Estimator for Credit Cards
 
-**Status:** Draft for build kickoff
+**Status:** Draft for build kickoff (re-planned 2026-05-18 — Phoebe in MVP)
 **Author:** Allan Smeyatsky
-**Date:** 2026-05-15
+**Date:** 2026-05-15 (re-plan 2026-05-18)
 **Build start:** week of 2026-05-18
-**Target MVP live:** 2026-07-31 (canary 100%)
+**Target MVP live:** 2026-08-31 (canary 100%) — slipped from 2026-07-31 to absorb Phoebe / GA4 ingestion
 **Repo / V1 baseline:** `asmeyatsky-work/msm` @ `v0.1.9`
 
 ---
@@ -23,19 +23,23 @@ Credit Cards product line. The most consequential differences from V1:
 
 | | V1 (synthetic) | V2 (Credit Cards) |
 |---|---|---|
-| Data | Synthetic seed (5k rows) | Real client click + sales-ledger feeds, 50% → 80% coverage by end of June 2026 |
-| Schema | Generic e-commerce features | Credit Cards-specific (product_type, stages, credit-domain proxies) |
+| Data | Synthetic seed (5k rows) | Real client click + sales-ledger feeds, 50% → 80% coverage by end of June 2026; **plus GA4 behavioural stream (Phoebe)** |
+| Schema | Generic e-commerce features | Credit Cards-specific (product_type, stages, credit-domain proxies) **+ four Phoebe features** |
 | Reconciliation window | 30 days | 90 days |
 | Conversion model | Single-event RPC | Multi-stage sum-of-rewards (ADR 0003) |
 | Environment | Single (`staging`) | Client-isolated (`client-cc`) + staging + prod |
 | Model lifecycle | One version | v1 trained on 50%, v2 retrained on 80% with canary traffic split |
-| Compliance | Demo-grade | FCA / Consumer Duty boundary documented and enforced (ADR 0004) |
+| Compliance | Demo-grade | FCA / Consumer Duty boundary documented and enforced (ADR 0004); GA4 PII boundary added (ADR 0005) |
 
-End-to-end calendar from data-sample arrival is **~8 weeks**; aggressive
-**6 weeks**, conservative **10 weeks**. See §13 for the milestone plan.
+End-to-end calendar from data-sample arrival is **~10 weeks** (was 8
+before Phoebe was pulled in); aggressive **8 weeks**, conservative **12
+weeks**. See §13 for the milestone plan.
 
-Engineering remaining: **12–17 engineering days** plus a conditional
-**+5–7 days** if the coverage audit reveals systematic missingness.
+Engineering remaining: **18–25 engineering days** (was 12–17 before
+Phoebe), plus a conditional **+5–7 days** if the coverage audit reveals
+systematic missingness, plus a conditional **+5 days** if the Phoebe
+event taxonomy needs significant re-mapping against real GA4 rows
+(OQ-12).
 
 ---
 
@@ -60,6 +64,23 @@ Engineering remaining: **12–17 engineering days** plus a conditional
    error.
 7. Operability: per-segment drift monitoring, alerting tuned for
    Credit Cards-scale variance, runbooks updated.
+8. **Phoebe behavioural features (GA4) — pulled into the MVP per the
+   MSM Ads team strategy day-one mandate.** GA4 BigQuery export ingested,
+   per-cookie behavioural rollup view (`phoebe_features`) joined to the
+   training rows, four features available at scoring time via the
+   existing feature-store adapter:
+   - `phoebe_calculator_used` — whether the user interacted with an
+     on-site APR / cashback calculator in this session.
+   - `phoebe_guides_read` — count of credit-cards guide pages read in
+     the rolling 30-day cookie window.
+   - `phoebe_cards_compared` — count of distinct card products compared
+     in the last 30 days.
+   - `phoebe_session_engagement_s` — total engaged-session time (in
+     seconds) over the rolling window.
+   Refresh cadence is nightly at MVP (sub-hourly is the explicit
+   follow-up — see §11 "Phoebe staleness" risk and ADR 0007). This is a
+   re-plan vs the original strategy-alignment PRD §4 (S4 phase); see
+   §13 for the revised timeline.
 
 ### 2.2 In scope (should-have)
 
@@ -279,6 +300,10 @@ auction_pressure      FLOAT64 REQUIRED [0..1]
 **rpc_60d**           FLOAT64 REQUIRED ≥0 (rolling, per product_type)
 landing_path          STRING REQUIRED (no querystring, no PII)
 visits_prev_30d       INT64  REQUIRED ≥0 (cookie-level)
+**phoebe_calculator_used**     BOOL    REQUIRED  (Phoebe / GA4)
+**phoebe_guides_read**         INT64   REQUIRED ≥0 (Phoebe / GA4, 30d rolling)
+**phoebe_cards_compared**      INT64   REQUIRED ≥0 (Phoebe / GA4, 30d rolling)
+**phoebe_session_engagement_s** FLOAT64 REQUIRED ≥0 (Phoebe / GA4, 30d rolling, seconds)
 ```
 
 **Removed** (e-commerce proxies that don't map):
@@ -315,6 +340,11 @@ card_product_id  STRING REQUIRED
 - `rpc_training_rows` — features joined to labels, used by the
   training pipeline.
 - `coverage_audit` — sliced coverage %.
+- `phoebe_features` — per-cookie GA4 behavioural rollup, joined into
+  `rpc_training_rows` and looked up at scoring time via the existing
+  feature-store adapter. Source: GA4 BigQuery export, dataset
+  `analytics_<property>`. Refresh cadence: nightly (sub-hourly is a
+  documented follow-up).
 
 ---
 
@@ -406,6 +436,10 @@ Acceptance criteria for a new model version before canary:
 | FCA boundary creep — product asks to add personalisation later | medium | high | ADR 0004 lists the two invariants; any change triggers a new ADR + compliance review before merge. |
 | Client GCP project bootstrap drags | low | medium | Reuse `msm-rpc` with namespaced datasets/services as a fallback. |
 | pip-audit / cargo-deny / npm audit churn during build (V1 already hit this) | medium | low | Workflow already auto-upgrades pip; routine triage. |
+| **GA4 access not granted in week 1 (OQ-11)** | medium | **critical** | This is now the single biggest cutover risk. Daily check-in with client analytics until granted. If it slides past week 2 we re-open the deferral conversation (option B of the Phoebe-in-MVP decision). |
+| **Phoebe event taxonomy doesn't match the strategy doc's bullets** | medium | high | Week-2 schema-discovery on real GA4 rows; +1 week buffer reserved. The four features in §7.1 are best-current-guess and may need renaming or re-mapping. The schema migration code is structured so adding/removing a Phoebe field is mechanical. |
+| **Phoebe staleness — nightly rollup misses in-session intent** | medium | medium | MVP ships nightly; the dashboard surfaces "phoebe freshness" so we can see when the rollup stale; sub-hourly rollup is the documented follow-up (ADR 0007). |
+| **GA4 PII exposure** | low | high | Hashed `user_pseudo_id` only; raw `user_id` and `ga_session_id` stripped at the staging view; ADR 0005 (new). Client compliance signs off the GA4 PII inventory in `data-contract-phoebe.md`. |
 
 ---
 
@@ -437,13 +471,22 @@ Calendar plan assumes today (**2026-05-15**) is week 0. Weeks count
 from the **data-sample arrival**, not from kickoff — the timeline is
 gated on data delivery.
 
+**Re-plan note (2026-05-18):** Phoebe (GA4 behavioural features) was
+pulled into the MVP per the MSM Ads team strategy day-one mandate. This
+adds three weeks to the original end-July cutover — new target is
+**end-August 2026**. The slip is driven by GA4 access + schema-discovery
+time, not by additional engineering on the platform: see Weeks 2-3 below.
+
 ### Week 1 (≈ 18–22 May 2026)
 - Kick-off call, sign-off on this PRD V2.
 - Data contract circulated for client legal + compliance.
 - GCP project decision (client's vs `msm-rpc` namespace).
 - Feature schema migration starts in `scoring-api`, `ml-pipeline`,
-  dashboard (against the documented schema; no data needed yet).
+  dashboard (against the documented schema; no data needed yet) — this
+  now includes the four Phoebe fields.
 - Coverage-audit view extended for dashboard consumption.
+- **GA4 access request submitted** to client analytics (OQ-3 elevated
+  to week-1 critical; without it the entire MVP slips).
 
 ### Week 2
 - Data contract signed; first data sample lands in BigQuery (~30 days,
@@ -455,11 +498,19 @@ gated on data delivery.
     parallel with v1 training).
 - Client-iso Terraform env stood up (`client-cc`), CD wired, first
   no-op deploy green.
+- **GA4 export access granted** — the platform SA reads
+  `analytics_<property>` in the client's GA4 BigQuery project.
+- **Phoebe schema discovery**: capture which `event_name` values are
+  actually emitted, validate the four feature mappings hold against
+  real GA4 rows.
 
 ### Week 3
 - Real ingestion live (Pub/Sub → BQ for clicks; scheduled query for
   ledger).
-- v1 trained on 50% sample.
+- **`phoebe_features` view live**: nightly per-cookie rollup from GA4
+  events, joined into `rpc_training_rows` and pushed to the feature
+  store for serving-time lookup.
+- v1 trained on 50% sample **including Phoebe features**.
 - v1 evaluated against §8.2 acceptance criteria.
 - Dashboard product-type filter, coverage panel, active-versions
   panel landed.
@@ -467,24 +518,32 @@ gated on data delivery.
 ### Week 4
 - v1 deployed to canary 10% on client env.
 - Daily calibration tracked on visible 50%.
+- **Phoebe-lift A/B**: a no-Phoebe model is also registered (same
+  features minus the four Phoebe columns) to quantify the behavioural
+  uplift before any client conversation about Phoebe ROI.
 - Runbooks rehearsed.
 
 ### Week 5
 - v1 stepped to 100% on client env (still a learning environment).
 - Monitoring tuned from real traffic; alert thresholds calibrated.
-- Per-segment drift monitors live.
+- Per-segment drift monitors live (now sliced by `phoebe_calculator_used`
+  too — researchers vs appliers).
 
 ### Week 6 — end-June
 - Client delivers 80% coverage data.
-- v2 retrained on the larger labelled set.
+- v2 retrained on the larger labelled set + the now-richer Phoebe
+  history.
 - v2 evaluated; sign-off for canary.
 
 ### Week 7
 - v2 canary 10% → 50% over 48h on client env.
 - Active-versions dashboard shows both running with their MAE.
 
-### Week 8 — end-July
-- v2 cuts over to 100%.
+### Week 8 — end-July (was original cutover; now mid-flight)
+- v2 reaches 100% traffic on the client env.
+- Soak — collect a full week of real Phoebe-on traffic before handover.
+
+### Week 9-10 — end-August
 - v1 deployment removed from the Vertex endpoint.
 - Handover sign-off (§12 ticked off in full).
 
@@ -492,6 +551,9 @@ gated on data delivery.
 - +5–7 days for systematic missingness (between week 2 and week 3).
 - +2–3 days for prod GCP project bootstrap if separate from `msm-rpc`.
 - +1 week for client-side legal review beyond expectation.
+- +1 week reserved for Phoebe schema mismatches discovered against real
+  GA4 rows (the four MVP features are best-current-guess from the
+  strategy doc; real events may need re-mapping).
 
 ---
 
@@ -511,6 +573,8 @@ Tracked here so we don't lose them. Each blocks something.
 | OQ-8 | Right-to-erasure SLA for `click_id` deletions | Retention policy | Client compliance |
 | OQ-9 | Two named contacts (data owner + engineering lead) | Working sessions throughout | Client |
 | OQ-10 | Production traffic on the client side: which bidder, which platform (SA360 / direct), failure semantics | Activation integration | Client engineering |
+| **OQ-11** | **GA4 BigQuery export — read access for the platform SA on `analytics_<property>` dataset; which property covers Credit Cards traffic; retention** | **Week 1 — without this the whole MVP slips, this is the new critical-path gate** | **Client analytics** |
+| **OQ-12** | **GA4 event taxonomy on the MSM site — which `event_name` values map to "calculator used", "guide read", "card compare"? The four Phoebe features in §7.1 are best-current-guess from the strategy doc and must be validated against real events** | **Phoebe schema discovery in week 2** | **Client analytics + Searce** |
 
 ---
 

@@ -1,8 +1,8 @@
 # PRD V2 — Strategy Alignment: From Predictive RPC to Value-Based Intelligence
 
-**Status:** Draft for review
+**Status:** Draft for review — **S4 (Phoebe) pulled into the CC MVP 2026-05-18.** Phases below renumbered; see `docs/PRD-v2-credit-cards.md` §2.1 item 8 and §13 for the new schedule.
 **Author:** Allan Smeyatsky
-**Date:** 2026-05-18
+**Date:** 2026-05-18 (re-plan 2026-05-18)
 **Companion to:** `docs/PRD-v2-credit-cards.md` (single-vertical hardening)
 **Scope:** Platform-level changes required to satisfy the MSM "Smart Bidding → Predictive RPC → Value-Based Intelligence" strategy.
 
@@ -300,27 +300,36 @@ New runbooks:
 
 ## 10. Delivery plan
 
-This is the **post-Credit-Cards** plan. Credit Cards cutover (end-July
-2026 per `PRD-v2-credit-cards.md`) is unchanged and on its existing
-timeline. The work below starts the week after that cutover.
+This is the **post-Credit-Cards** plan. Credit Cards cutover is now
+**end-August 2026** (slipped from end-July to absorb Phoebe — see
+`PRD-v2-credit-cards.md` §13). The work below starts the week after
+that cutover.
+
+**Re-plan note (2026-05-18):** the original S1 (vertical_id) was
+already landed before this PRD was written — it shipped with the
+CC schema migration. The original S4 (Phoebe) was pulled into the CC
+MVP per the strategy day-one mandate. Phases below renumber: S1=Soteria,
+S2=Cerberus, S3=CRM/LTV, S4=value-tier, S5=creative push + MMM,
+S6=second vertical.
 
 | Phase | Weeks | Deliverable | Gating |
 |---|---|---|---|
-| S1 | +2 | `vertical_id` plumbing end-to-end (no behaviour change) | Credit Cards on v2 stable |
-| S2 | +3 | Soteria margin table + profit label + A/B retrain (Credit Cards first) | S1 + client finance hands over commission table |
-| S3 | +3 | Cerberus decision service (rules MVP) + IVT log + dashboard panel | S1 |
-| S4 | +4 | Phoebe GA4 ingestion + nightly features + serving lookup | Client provides GA4 export project access |
-| S5 | +3 | CRM ingestion + matcher + ADR 0005 sign-off | Client legal + salt agreement |
-| S6 | +2 | LTV head trained, value-tier output added to `/v1/score`, dashboard donut | S2 + S5 |
-| S7 | +2 | Creative-engine push + MMM halo daily view | S6, client creative-engine API spec |
-| S8 | +3 | Second vertical (proposal: Loans) onboarded end-to-end | S1–S7 stable |
+| ~~S1 (done)~~ | — | ~~`vertical_id` plumbing~~ — landed in commit `0cb1d20` ahead of this PRD | — |
+| S1 (was S2) | +3 | Soteria margin table + profit label + A/B retrain (Credit Cards first) | Client finance hands over commission table |
+| S2 (was S3) | +3 | Cerberus decision service (rules MVP) + IVT log + dashboard panel | — |
+| ~~S4 (Phoebe)~~ | — | ~~Phoebe GA4 ingestion + nightly features + serving lookup~~ — pulled into CC MVP per strategy mandate; see `PRD-v2-credit-cards.md` §2.1 item 8 | — |
+| S3 (was S5) | +3 | CRM ingestion + matcher + ADR 0005 sign-off | Client legal + salt agreement |
+| S4 (was S6) | +2 | LTV head trained, value-tier output added to `/v1/score`, dashboard donut | S1 + S3 |
+| S5 (was S7) | +2 | Creative-engine push + MMM halo daily view | S4, client creative-engine API spec |
+| S6 (was S8) | +3 | Second vertical (proposal: Loans) onboarded end-to-end | S1–S5 stable |
 
-Rough total: **~22 weeks** from Credit Cards cutover to second vertical
-live (i.e. end-2026 → early-2027), assuming the gating items hold.
+Rough total: **~16 weeks** from Credit Cards cutover to second vertical
+live (was 22 — Phoebe consumed the 4 weeks for the strategy mandate,
+vertical_id consumed 2). Assuming the gating items hold.
 
-Engineering days remaining excluding waits: **~70 days** at one full-time
-engineer, distributable across two engineers without contention because
-S2/S3/S4 are independent.
+Engineering days remaining excluding waits: **~50 days** at one
+full-time engineer, distributable across two engineers without
+contention because S1/S2 are independent.
 
 ---
 
