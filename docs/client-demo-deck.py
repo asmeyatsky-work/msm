@@ -30,7 +30,7 @@ MUTED  = RGBColor(0x6B, 0x73, 0x80)
 RULE   = RGBColor(0xD7, 0xDB, 0xE3)
 
 FONT = "Calibri"
-TOTAL_PAGES = 15
+TOTAL_PAGES = 16
 
 
 def run(p, text, size=14, bold=False, color=SLATE, font=FONT, italic=False):
@@ -160,22 +160,23 @@ def slide_cover(prs):
 
     eyebrow = s.shapes.add_textbox(Inches(0.7), Inches(1.6), Inches(9), Inches(0.4))
     p = eyebrow.text_frame.paragraphs[0]
-    run(p, "PREDICTIVE REVENUE INTELLIGENCE", size=12, bold=True, color=ACCENT)
+    run(p, "PREDICTIVE REVENUE INTELLIGENCE — CREDIT CARDS MVP",
+        size=12, bold=True, color=ACCENT)
 
     title = s.shapes.add_textbox(Inches(0.7), Inches(2.1), Inches(9), Inches(1.4))
     tf = title.text_frame; tf.word_wrap = True
     p = tf.paragraphs[0]
     run(p, "Predictive RPC Estimator", size=44, bold=True, color=WHITE)
     p2 = tf.add_paragraph()
-    run(p2, "Real-time revenue-per-click forecasting on Google Cloud",
+    run(p2, "Real-time revenue-per-click forecasting for Credit Cards",
         size=20, color=LIGHT)
 
     sub = s.shapes.add_textbox(Inches(0.7), Inches(4.8), Inches(9), Inches(2))
     tf = sub.text_frame; tf.word_wrap = True
     for label, val in [
         ("Solution demo", "Live staging environment"),
-        ("Audience", "Client executive and technical stakeholders"),
-        ("Date", "2026-05-11"),
+        ("Audience", "Credit Cards leadership + technical stakeholders"),
+        ("Date", "2026-05-18"),
     ]:
         p = tf.add_paragraph(); p.line_spacing = 1.3
         run(p, f"{label}    ", size=12, bold=True, color=ACCENT)
@@ -191,28 +192,34 @@ def slide_exec_summary(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     title_bar(s, prs, "Executive summary", eyebrow="Where we are today")
     body_box(s, prs, [
-        ("h", "A production-grade revenue forecasting service is operational."),
-        ("p", "We have built and deployed an end-to-end machine-learning service that predicts revenue-per-click in real time, with the engineering controls required to run it safely in production. You can run the live model yourself in today's demo."),
-        ("h", "Three things to take away today"),
-        ("b", "Working software you can touch — a browser-based dashboard fronts the live model on Google Cloud, with measured p95 latency under one second."),
-        ("b", "Explainable by default — every prediction returns per-feature attributions, rendered alongside the price so finance and compliance can audit any decision."),
-        ("b", "Production engineering — circuit breakers, drift monitoring, alerting, runbooks, and a tested rollback path are all in place; a clear path to your real data follows in eight weeks."),
+        ("h", "A production-grade revenue forecasting service, Credit-Cards-shaped, on staging."),
+        ("p", "End-to-end machine-learning service predicting revenue-per-click in real time — with the Credit Cards feature schema, the 90-day reconciliation window, the safety net, and four demo-grade visualisations purpose-built for this conversation."),
+        ("h", "Four things to take away today"),
+        ("b", "A live model you can drive — describe a Credit Cards click in business language, press Predict, see the predicted bid, the value-based vs flat-tCPA comparison, and the explanation, all under a second."),
+        ("b", "The behavioural-signal layer (Phoebe / GA4) is wired into the schema and the dashboard, day one — see the user-journey animation drive the bid in real time."),
+        ("b", "Three failure modes commonly seen in prior value-based-bidding attempts are addressed in the platform, with the file references to prove it."),
+        ("b", "A clear path to your real data: 50% → 80% coverage trajectory fits the model lifecycle. End-August cutover is the target; the schema, dashboards, alerts, and CD path are already running on staging."),
     ], font_size=14)
     footer(s, prs, 2)
 
 
 def slide_problem(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    title_bar(s, prs, "The opportunity", eyebrow="Why this matters")
+    title_bar(s, prs, "The opportunity — Credit Cards, now",
+              eyebrow="Why this vertical, why this quarter")
     body_box(s, prs, [
-        ("h", "Bidding and budget decisions today rely on lagging signals."),
-        ("p", "Revenue per click is reconciled days after the fact, from a sales ledger that lives apart from the ad platforms making spend decisions. By the time the numbers settle, the budget has already been committed."),
+        ("h", "Credit Cards PPC is under-using the sales data you already have."),
+        ("p", "Flat target-CPA bidding treats every Credit Cards click as the same tin of beans. The whales that actually pay back the customer-acquisition cost are over-paid for in one campaign and under-bid in another — and you only find out 90 days later when the ledger reconciles."),
+        ("h", "Why act on Credit Cards before the other verticals"),
+        ("b", "Near-term commercial pressure on the channel — first vertical to pay back the platform investment."),
+        ("b", "Sales coverage is rising — 50% today to ~80% by end of June. The model lifecycle re-trains as coverage climbs."),
+        ("b", "Lower risk than Car Insurance: bid-optimisation only, no customer-decisioning surface — keeps the FCA boundary clean."),
         ("h", "What a predictive RPC unlocks"),
         ("b", "Bid the click that's likely to convert — not the click that already did."),
-        ("b", "Reallocate spend within the hour, not the week."),
-        ("b", "Detect campaign degradation before it shows up in revenue."),
-        ("b", "Explain every prediction — auditability for finance and compliance."),
-    ], font_size=14)
+        ("b", "Reallocate spend within the hour, not the week, with the value-based bid replacing the flat tCPA target."),
+        ("b", "Detect campaign degradation before it shows up in revenue — per-segment drift alerts, week-over-week."),
+        ("b", "Explain every prediction in plain English — auditability for finance and compliance."),
+    ], font_size=13)
     footer(s, prs, 3)
 
 
@@ -220,16 +227,18 @@ def slide_solution(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     title_bar(s, prs, "Solution overview", eyebrow="What we have built")
     body_box(s, prs, [
-        ("h", "A managed prediction service on Google Cloud, with a browser UI for non-technical users."),
-        ("b", "Executive dashboard — KPIs, daily forecast-vs-reality charts, residual distribution, and a live model-health panel, all in business language."),
-        ("b", "Interactive prediction — describe a click in eight plain-English fields, press Predict, watch the pipeline execute step-by-step in real time."),
-        ("b", "Explainable AI — every prediction returns per-feature attributions, rendered as horizontal bars so anyone can see why the model said what it said."),
-        ("b", "REST API — the same predictions are available programmatically for SA360, SSGTM and downstream activation."),
-        ("b", "Safety net — anomaly detection, automatic circuit-breaker, negative-prediction guards, configurable timeouts, kill-switch flag."),
-        ("b", "One-command deploys — every change ships through CI with a tested rollback to the prior model version."),
-        ("h", " "),
-        ("mute", "All components run in Google Cloud (europe-west2, London) on managed services — Cloud Run, Vertex AI, BigQuery, Pub/Sub — so there is no infrastructure for the client team to operate."),
-    ], font_size=13)
+        ("h", "A managed prediction service on Google Cloud, sized for Credit Cards."),
+        ("b", "Executive dashboard — KPIs in pounds, 90-day default window, product-type filter, coverage-audit panel, active-model-versions panel."),
+        ("b", "Interactive prediction — Credit-Cards-shaped form (product type, card product, query intent, affinity, prior-applicant, income band, two RPC rollups, plus four Phoebe behavioural signals)."),
+        ("b", "Hero before/after — same click, side-by-side: flat-tCPA target vs value-based bid vs difference, with a session counter that runs total over time."),
+        ("b", "Phoebe journey — animated 6-step replay of a single user's behavioural signal building up and the predicted bid following it."),
+        ("b", "Explainable AI — every prediction returns per-feature attributions in plain English; 'Likely-to-apply score', 'Recent 14-day earnings', 'Time engaged'."),
+        ("b", "REST API — the same predictions available programmatically for SA360, SSGTM, OCI downstream activation."),
+        ("b", "Safety net — anomaly detection, automatic circuit-breaker, negative-prediction guards, per-call timeouts, kill-switch flag."),
+        ("b", "Per-segment drift + coverage-drop alerts — Cloud Monitoring policies fire on the dimensions that matter for CC (product_type × device × geo)."),
+        ("b", "One-command deploys — tag push runs CI then CD; tested rollback to the prior model version is a single Vertex traffic-split."),
+        ("mute", "All components run in Google Cloud (europe-west2, London) on managed services — Cloud Run, Vertex AI, BigQuery, Pub/Sub, Cloud Monitoring — no infrastructure for the client team to operate."),
+    ], font_size=12)
     footer(s, prs, 4)
 
 
@@ -243,30 +252,30 @@ def slide_deliverables(prs):
          "Executive UI",
          "Yes — primary demo",
          "primary"),
-        ("scoring-api  /v1/score, /v1/explain",
-         "Their backend / SA360 integration",
-         "API only — show via curl / Postman on slide 7",
+        ("scoring-api  /v1/score, /v1/explain  (Rust)",
+         "Bidder integration: SA360 / SSGTM / OCI",
+         "API only — invoked live by the dashboard",
          "api"),
-        ("reconciliation  /reconciliation",
+        ("reconciliation  /reconciliation, /coverage",
          "Powers the dashboard",
          "API only — invisible to client",
          "api"),
-        ("activation",
-         "SA360 / SSGTM push",
+        ("activation  (Python)",
+         "SA360 / SSGTM / OCI push",
          "Backend, no UI",
          "backend"),
         ("breaker-automation, ml-pipeline, bounds-calibration",
-         "Internal / scheduled",
+         "Internal / scheduled training and recovery",
          "Backend",
          "backend"),
-        ("mcp-servers/scoring-mcp, mlops-mcp",
-         "Agent tooling for engineers",
-         "Not client-facing",
-         "backend"),
-        ("Dataform models, BigQuery views",
-         "Analyst layer",
-         "Available in Looker Studio as a second visual artefact (optional)",
+        ("Dataform: phoebe_features, coverage_audit, drift / coverage breach views",
+         "Analyst + monitoring layer",
+         "BigQuery direct or Looker Studio",
          "optional"),
+        ("ops/breach_emitter.py",
+         "Daily Cloud-Scheduler driven breach → alert emitter",
+         "Backend",
+         "backend"),
     ]
 
     # Layout
@@ -426,18 +435,24 @@ def slide_architecture(prs):
 def slide_demo_script(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     title_bar(s, prs, "Live demo — what you will see",
-              eyebrow="Five minutes, three screens")
+              eyebrow="Seven minutes, one URL")
     body_box(s, prs, [
-        ("h", "1.  The dashboard, in business language"),
-        ("p", "We open the live dashboard. KPIs in pounds and percentages explain how much we earned, how accurate the model was, and how many clicks ended up converting. Daily and residual charts answer 'is the model right, and which direction does it err?' in one glance."),
-        ("h", "2.  You drive the model — yourself"),
-        ("p", "We hand you the keyboard. Describe a click in plain English — device, country, hour of day, search intent, user trust score, auction pressure, recent earnings, repeat visits — and press Predict. In under a second you see the predicted revenue, the model version that priced it, and the latency. Below it, a live pipeline trace lights up the five backend steps as they happen: validate, guardrails, AI model on Vertex, BigQuery stream, SHAP explanation."),
-        ("h", "3.  Why the model said that"),
-        ("p", "The same prediction renders a horizontal-bar attribution chart: green bars pushed the price up, red pushed it down, starting from the model's baseline. Every prediction is auditable, and the names on the chart are plain English ('User trust score', 'Recent 7-day earnings'), not engineering jargon."),
-        ("h", "4.  The safety net, on cue"),
-        ("p", "We send a deliberately malformed click. The service rejects it cleanly, the circuit-breaker counters tick on the model-health panel, and the request never reaches the model. No degradation visible to clean traffic."),
+        ("h", "1.  KPIs in pounds, 90-day default — and a product-type filter."),
+        ("p", "We open the dashboard. Five KPIs — clicks scored, expected vs realised earning, typical error, and conversion coverage — explain accuracy in business language. The window defaults to 90 days for Credit Cards. The product-type filter re-segments the chart in one click."),
+        ("h", "2.  Where we have full visibility — coverage panel."),
+        ("p", "A bar chart shows coverage % per product-type slice. Red bars are slices below 60% — the slices where we'd ask for ingestion backfill before retraining. This is how we answer the 50% question, slice by slice, not as an aggregate."),
+        ("h", "3.  Hero before/after — flat tCPA vs value-based bid, on the same click."),
+        ("p", "Three side-by-side cards: Old-world flat target-CPA, New-world value-based bid (70% of predicted RPC), and the difference — over-paid prevented or under-bid recovered. A session counter accumulates the total across every prediction the audience fires."),
+        ("h", "4.  You drive the model — yourself."),
+        ("p", "Form fields in Credit-Cards language: product type, card product, query intent (compare/shop/apply/research), 'how likely to apply', 'used a calculator', 'guides read', 'cards compared', 'time engaged'. Press Predict — the pipeline-trace lights up in real time: validate → guardrails → Vertex AI → BigQuery → SHAP."),
+        ("h", "5.  The Phoebe journey — bouncer with a crystal ball."),
+        ("p", "Press Play. A single user moves through six steps — search → page view → calculator → guides → compare-5 → click. The predicted bid ticks up under each step card as their behavioural signal builds. A lift pill shows the £ gap from first to last step."),
+        ("h", "6.  Why the model said that."),
+        ("p", "Horizontal-bar attribution chart on every prediction. Names are in business English ('Likely-to-apply score', 'Recent 14-day earnings', 'Time engaged'). Auditable for finance and compliance — ADR 0004 forbids these signals reaching customer terms."),
+        ("h", "7.  The platform context — what we've designed against; what's next."),
+        ("p", "Three failure modes named at the bottom of the page — pricing leakage, uncontrolled bidding, invisible decay — each mapped to where the platform pushes back. And a five-vertical roadmap: Credit Cards live, Loans / Home / Life / Mortgages dated."),
         ("mute", f"Live dashboard  ·  {DEMO_URL}"),
-    ], font_size=12)
+    ], font_size=11)
     footer(s, prs, 7)
 
 
@@ -492,6 +507,48 @@ def slide_engineering(prs):
     footer(s, prs, 9)
 
 
+def slide_tech_choices(prs):
+    """The slide that pre-empts 'are you sure you didn't just pick the
+    default' questions from a CTO room. Two-column rationale grid."""
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    title_bar(s, prs, "Why these technology choices",
+              eyebrow="What we evaluated, and what we chose")
+
+    left_col = [
+        ("h", "Hot path — Rust on Cloud Run"),
+        ("b", "Latency budget: /v1/score p99 ≤ 2.5 s end-to-end; Vertex AI predict round-trip dominates ~700 ms. Rust gives us the rest of the budget for safety-net composition (bounds → fallback, circuit breaker, anomaly window) with zero GC jitter."),
+        ("b", "Considered Go and Python; both leave less headroom and complicate the breaker's idempotency guarantees."),
+        ("h", "Model — XGBoost on Vertex AI"),
+        ("b", "Feature space is tabular and ~11 columns wide. GBDT is the empirically dominant family for tabular regression at this scale."),
+        ("b", "Vertex's prebuilt xgboost-cpu container ships native explanationSpec (Sampled-Shapley) — /v1/explain comes free; deep models need a separate KernelSHAP that's slower, noisier, harder to audit under ADR 0004."),
+        ("b", "Deterministic predict call composes cleanly with the circuit breaker; transformers' stateful decoding would not."),
+        ("h", "Frontend — TypeScript + React + Vite"),
+        ("b", "Single demo URL; realtime interactivity (live prediction, animated Phoebe journey). Zod validates the JSON at the boundary."),
+        ("b", "No server-side rendering — keeps the dashboard a static-asset deploy behind a single Cloud Run service."),
+    ]
+    right_col = [
+        ("h", "Cross-service contracts — Protobuf"),
+        ("b", "Wire stability across Rust ↔ Python; codegen per language; cross-language parity test in CI guards drift."),
+        ("b", "Considered JSON Schema — adequate, but loses the on-wire byte-stability we rely on for the audit trail."),
+        ("h", "Data layer — Dataform on BigQuery"),
+        ("b", "Same SQL primitives as dbt; one less tool the client team has to install and learn."),
+        ("b", "Type-safe ref()s give us the dependency graph automatically: coverage_audit, residuals_by_segment, drift_breaches_weekly all light up in the right order."),
+        ("h", "Identity — Workload Identity Federation"),
+        ("b", "GitHub OIDC federates into GCP. No long-lived service-account keys to rotate, leak, or audit."),
+        ("b", "Per-service service accounts; every IAM grant is in Terraform — reviewable in git, not in the console."),
+        ("h", "Runtime — Cloud Run"),
+        ("b", "Request-driven autoscaling; min=1 keeps the demo warm at ~£3-5/day; max ramps under load tests without paging us."),
+        ("b", "Considered GKE — overkill for a service that's CPU-bound and stateless; we'd pay for cluster overhead we don't use."),
+    ]
+    body_box(s, prs, left_col,
+             top=Inches(1.2), left=Inches(0.5),
+             width=Inches(6.2), font_size=10, line_spacing=1.15)
+    body_box(s, prs, right_col,
+             top=Inches(1.2), left=Inches(6.85),
+             width=Inches(6.2), font_size=10, line_spacing=1.15)
+    footer(s, prs, 10)
+
+
 def slide_security(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     title_bar(s, prs, "Security and compliance posture",
@@ -505,10 +562,13 @@ def slide_security(prs):
         ("b", "All data resident in europe-west2 (London). No US-region replicas."),
         ("b", "Google-managed encryption keys by default; customer-managed keys (CMEK) available on request."),
         ("b", "Predictions are persisted to BigQuery with the same access controls as your existing analytics estate."),
+        ("h", "Compliance boundary"),
+        ("b", "ADR 0004: bid-optimisation only. No customer identifiers ingested; no model output reaches any system that affects customer terms or eligibility."),
+        ("b", "ADR 0005 (in flight): GA4 / Phoebe PII boundary — hashed user_pseudo_id only; raw user_id and PII event params stripped at the staging view."),
         ("h", "Supply chain"),
         ("b", "Container images pinned by digest; dependency scanning runs on every PR; no third-party model weights are downloaded at runtime."),
-    ], font_size=13)
-    footer(s, prs, 10)
+    ], font_size=12)
+    footer(s, prs, 11)
 
 
 def slide_data_model(prs):
@@ -516,18 +576,19 @@ def slide_data_model(prs):
     title_bar(s, prs, "Data and model lifecycle",
               eyebrow="From your ledger to a live prediction")
     body_box(s, prs, [
-        ("h", "Ingestion"),
-        ("b", "Real click events arrive via Pub/Sub or push-down query into BigQuery — schema and freshness are agreed in the data contract."),
-        ("b", "Sales-ledger data is loaded via scheduled query or transfer service from the client source of truth."),
-        ("h", "Training"),
-        ("b", "Model is trained in a Vertex AI pipeline run from the same monorepo — fully reproducible from a commit."),
-        ("b", "Each model version is registered in the Vertex Model Registry; we never deploy an unversioned artifact."),
-        ("h", "Release"),
-        ("b", "New versions deploy behind a traffic split — 10% canary, then ramp — with automatic rollback if breaker trip rates spike."),
-        ("b", "Drift monitoring on inputs (PSI) and on outputs vs the reconciled ledger keeps the model honest in production."),
-        ("mute", "Today's demo runs against a model trained on a synthetic dataset that mirrors the agreed schema. Retraining on real data is the first work item once the data contract is signed."),
-    ], font_size=13)
-    footer(s, prs, 11)
+        ("h", "Three feeds, one model"),
+        ("b", "Click stream (CM360) — Credit Cards schema: product_type, card_product_id, query_intent (CC enum), affinity_score, prior_applicant, income_band_bucket, rpc_14d/60d, landing_path, visits_prev_30d."),
+        ("b", "Sales ledger — multi-stage events (application_started → submitted → approved → activated → first_spend → chargeback) with revenue, margin_rate (Soteria-ready), card_product_id, currency."),
+        ("b", "GA4 / Phoebe — behavioural rollup (calculator_used, guides_read, cards_compared, session_engagement_s), per cookie, nightly. Joined at training; looked up at serving."),
+        ("h", "Label and reconciliation window"),
+        ("b", "Sum-of-rewards over a 90-day window (ADR 0003 — fits the CC consideration tail). Profit-ready: realised label is SUM(revenue × COALESCE(margin_rate, 1.0)); commission table swaps in as a data-only change."),
+        ("h", "Training and release"),
+        ("b", "Vertex AI Pipelines run from the same monorepo — reproducible from a commit. Every version registered in Vertex Model Registry."),
+        ("b", "Canary path: 10% traffic split → 50% over 48h → 100%. Active-versions panel on the dashboard shows the share and rolling MAE side-by-side."),
+        ("b", "Drift on inputs (PSI per numeric feature), outputs (residuals_daily), per-segment (product × device × geo), and coverage (slice drop W-o-W)."),
+        ("mute", "Today's demo runs against a model trained on a synthetic dataset that mirrors the agreed schema. Retraining on real Credit Cards data is the first work item once OQ-11 (GA4 access) and the data contract are signed."),
+    ], font_size=12)
+    footer(s, prs, 12)
 
 
 def slide_operability(prs):
@@ -535,17 +596,17 @@ def slide_operability(prs):
     title_bar(s, prs, "Operational readiness", eyebrow="Run-book ready, on day one")
     body_box(s, prs, [
         ("h", "Service-level objectives"),
-        ("b", "Availability target 99.5% on /v1/score; latency SLO sized from the live load profile."),
-        ("b", "Error-budget policy: breaches automatically open an incident channel."),
+        ("b", "Availability target 99.5% on /v1/score; latency SLO sized from the live load profile (p95 ~920 ms vs 1500 ms threshold)."),
+        ("b", "Error-budget policy: breaches automatically open an incident channel (notification channel pending OQ-2)."),
         ("h", "Observability"),
         ("b", "Cloud Logging, Cloud Trace, and Cloud Monitoring out of the box — one pane of glass for the on-call engineer."),
-        ("b", "Four alert policies pre-wired: latency, error rate, breaker trips, anomaly state."),
+        ("b", "Six alert policies pre-wired: latency p95, error rate, breaker trips, anomaly state, per-segment MAE drift > 25% W-o-W, per-slice coverage drop > 10pp W-o-W."),
         ("h", "Runbooks committed to the repository"),
-        ("b", "Reset the breaker · Roll back a model version · Scale Vertex to zero for cost · Rotate a secret · Migrate the BigQuery schema."),
+        ("b", "Reset the breaker · Roll back a model version · Scale Vertex to zero for cost · Rotate a secret · Migrate the BigQuery schema · Coverage audit (random-vs-systematic decision)."),
         ("h", "Rollback"),
         ("b", "Vertex traffic-split rollback to the previous model version is a single command; Cloud Run revisions are pinned and revertible."),
-    ], font_size=13)
-    footer(s, prs, 12)
+    ], font_size=12)
+    footer(s, prs, 13)
 
 
 def slide_roadmap(prs):
@@ -554,15 +615,21 @@ def slide_roadmap(prs):
 
     # Phase cards
     phases = [
-        ("Phase 1", "Staging hardened", "Complete",
-         ["Real explain path live", "Sliding anomaly window",
-          "IaC for IAM", "Load profile captured"], GREEN),
-        ("Phase 2", "Real data", "In flight",
-         ["Data contract sign-off", "Ingestion of client feeds",
-          "Retrain on real data", "Canary 10% → 100%"], ACCENT),
-        ("Phase 3", "Production", "Ready to start",
-         ["Prod Terraform workspace", "Prod CD with approvals",
-          "Right-sized Vertex", "Sign-off and handover"], TEAL),
+        ("Phase 1", "Platform & schema", "Complete",
+         ["Credit Cards schema end-to-end",
+          "Phoebe behavioural features wired",
+          "Demo dashboard live",
+          "Drift + coverage alerting in place"], GREEN),
+        ("Phase 2", "Real data (50% → 80%)", "Pending client",
+         ["GA4 access (OQ-11) granted",
+          "Click + ledger sample lands",
+          "v1 trained on 50% coverage",
+          "Canary 10% → 100% on client env"], ACCENT),
+        ("Phase 3", "Cutover & handover", "End-August 2026",
+         ["v2 retrained on 80% coverage",
+          "Rollback rehearsed in low traffic",
+          "Compliance sign-off on ADRs 0004/0005",
+          "Handover to client on-call"], TEAL),
     ]
     cw = Inches(4.2); ch = Inches(4.0); top = Inches(1.3)
     left0 = Inches(0.55); gap = Inches(0.25)
@@ -601,27 +668,29 @@ def slide_roadmap(prs):
     note = s.shapes.add_textbox(Inches(0.55), Inches(5.45),
                                 prs.slide_width - Inches(1.1), Inches(0.7))
     p = note.text_frame.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-    run(p, "Indicative timeline: ~8 weeks from kickoff, gated on data access. "
-        "Each phase ends in a working, demoable artefact.",
+    run(p, "Timeline measured from data-sample arrival, not kickoff. "
+        "Phase 1 is on staging today; Phase 2 starts the day GA4 access + a sample data export land.",
         size=11, italic=True, color=MUTED)
-    footer(s, prs, 13)
+    footer(s, prs, 14)
 
 
 def slide_commercials(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     title_bar(s, prs, "What we need from you", eyebrow="Next steps to unlock value")
     body_box(s, prs, [
-        ("h", "Three decisions"),
-        ("b", "Sign off the data contract — schema, freshness, and PII handling for click and sales-ledger feeds."),
-        ("b", "Nominate one data owner and one on-call engineer on your side for joint working sessions."),
-        ("b", "Confirm production GCP project (or authorise a prod-isolated namespace in the existing one)."),
-        ("h", "Two artefacts we will share this week"),
-        ("b", "A short data-contract template ready for legal and engineering review."),
+        ("h", "Five decisions, in priority order"),
+        ("b", "GA4 access (OQ-11) — read on the Credit Cards analytics_<property> dataset. This is the critical path; everything downstream slips a week per week this slides."),
+        ("b", "Confirm GA4 event taxonomy (OQ-12) — which event_name values map to 'calculator used', 'guide read', 'card compare'. Best-current-guess in our staging schema; one working session to validate."),
+        ("b", "Click → cookie join key (OQ-13) — server-side CM360 + GA4 merge, first-party-cookie pass-through, or no-join. Decides whether Phoebe lifts the live model."),
+        ("b", "GCP project (OQ-1) — client's own or a namespaced env in our msm-rpc project. We can move either way; the deploy-client-cc CD job is already wired and gated on the decision."),
+        ("b", "Compliance contact + sign-off on ADRs 0004 (FCA boundary) and 0005 (GA4 PII boundary). Two named contacts: one data owner + one engineering lead."),
+        ("h", "What you also get"),
+        ("b", "The Car Insurance failure summary from Ryan refines our 'designed against' tile from speculation to confirmed mitigations."),
         ("b", "Read-only access to the live staging environment for your team to probe."),
-        ("h", "What you get in eight weeks"),
-        ("b", "A production service, on your data, with your on-call team in the cockpit and a signed handover."),
-    ], font_size=14)
-    footer(s, prs, 14)
+        ("h", "What you get at the end"),
+        ("b", "A production service, on your data, with your on-call team in the cockpit and a signed handover by end-August."),
+    ], font_size=12)
+    footer(s, prs, 15)
 
 
 def slide_thanks(prs):
@@ -660,12 +729,13 @@ def main():
     slide_demo_script(prs)      # 7
     slide_performance(prs)      # 8
     slide_engineering(prs)      # 9
-    slide_security(prs)         # 10
-    slide_data_model(prs)       # 11
-    slide_operability(prs)      # 12
-    slide_roadmap(prs)          # 13
-    slide_commercials(prs)      # 14
-    slide_thanks(prs)           # 15
+    slide_tech_choices(prs)     # 10  — new, tech-audience rationale
+    slide_security(prs)         # 11
+    slide_data_model(prs)       # 12
+    slide_operability(prs)      # 13
+    slide_roadmap(prs)          # 14
+    slide_commercials(prs)      # 15
+    slide_thanks(prs)           # 16
 
     prs.save(OUT)
     print(f"wrote {OUT}  ({OUT.stat().st_size:,} bytes, {len(prs.slides)} slides)")
