@@ -1,27 +1,40 @@
 :root {
   --navy: #0b1f3a;
   --navy-700: #1a3258;
+  --navy-50: #e9edf3;
   --teal: #0f6e7a;
-  --teal-50: #e6f1f2;
+  --teal-50: #d8ebee;
+  --teal-100: #b8dde2;
   --accent: #d97306;
-  --accent-50: #fdf3e7;
+  --accent-50: #fbe9d3;
   --green: #1f8a4f;
-  --green-50: #e8f5ee;
+  --green-50: #d8efde;
   --red: #b9341d;
-  --red-50: #fbeae6;
-  --slate: #333f52;
+  --red-50: #f7d9d2;
+  --gold: #d4a437;
+  --gold-50: #f7edd4;
+  --plum: #5a3a6e;
+  --plum-50: #ece2f1;
+  --slate: #2a3142;
   --muted: #6b7380;
-  --rule: #e3e6ec;
-  --bg: #f7f8fb;
+  --rule: #d6dae3;
+  /* Soft warm background — replaces the previous near-white. The
+     gradient lifts the body off the white cards without making it
+     look like a marketing page. */
+  --bg: #eef1f6;
+  --bg-tint: linear-gradient(180deg, #e8edf4 0%, #eef1f6 220px, #eef1f6 100%);
   --card: #ffffff;
-  --shadow: 0 1px 2px rgba(11, 31, 58, 0.04), 0 1px 1px rgba(11, 31, 58, 0.06);
+  --card-tint: #f4f6fa;
+  --shadow: 0 1px 2px rgba(11, 31, 58, 0.05), 0 2px 6px rgba(11, 31, 58, 0.06);
+  --shadow-lg: 0 4px 14px rgba(11, 31, 58, 0.10), 0 1px 3px rgba(11, 31, 58, 0.07);
 }
 
 * { box-sizing: border-box; }
 
 html, body, #root {
   margin: 0; padding: 0; height: 100%;
-  background: var(--bg);
+  background: var(--bg-tint);
+  background-attachment: fixed;
   color: var(--slate);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
                "Helvetica Neue", Arial, sans-serif;
@@ -40,11 +53,12 @@ a:hover { text-decoration: underline; }
 }
 
 .topbar {
-  background: var(--navy);
+  background: linear-gradient(90deg, #07172e 0%, #0b1f3a 45%, #1a3258 100%);
   color: #fff;
   padding: 14px 28px;
   display: flex; align-items: center; gap: 18px;
   border-bottom: 3px solid var(--accent);
+  box-shadow: 0 2px 8px rgba(11, 31, 58, 0.18);
 }
 .topbar .brand {
   font-weight: 700; font-size: 16px; letter-spacing: 0.02em;
@@ -55,15 +69,16 @@ a:hover { text-decoration: underline; }
   background: var(--accent);
   border-radius: 2px;
   margin-right: 10px; vertical-align: middle;
+  box-shadow: 0 0 0 3px rgba(217, 115, 6, 0.25);
 }
 .topbar .product {
   color: #cdd5e0; font-size: 13px;
 }
 .topbar .env-pill {
   margin-left: auto;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.18);
-  color: #cdd5e0;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.22);
+  color: #e6ecf3;
   font-size: 11px; font-weight: 600;
   padding: 4px 10px; border-radius: 999px;
   letter-spacing: 0.04em; text-transform: uppercase;
@@ -78,17 +93,17 @@ a:hover { text-decoration: underline; }
   letter-spacing: -0.01em;
 }
 .pageheader .sub {
-  margin-top: 4px; color: var(--muted); font-size: 13px;
+  margin-top: 4px; color: var(--slate); font-size: 13px;
 }
 .pageheader .range {
   margin-left: auto;
-  color: var(--muted); font-size: 12px;
-  background: var(--card);
+  color: var(--slate); font-size: 12px;
+  background: #fff;
   border: 1px solid var(--rule);
   padding: 6px 12px; border-radius: 6px;
   box-shadow: var(--shadow);
 }
-.pageheader .range b { color: var(--slate); font-weight: 600; }
+.pageheader .range b { color: var(--navy); font-weight: 700; }
 
 main.content {
   flex: 1;
@@ -97,6 +112,8 @@ main.content {
 }
 
 /* ── KPI tiles ─────────────────────────────────────────────── */
+/* Each KPI tile picks up a soft tinted background matching its accent
+   stripe. Reduces the dominant-white feel without being garish. */
 .kpis {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -106,7 +123,7 @@ main.content {
 @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
 
 .kpi {
-  background: var(--card);
+  background: linear-gradient(145deg, #ffffff 0%, var(--teal-50) 130%);
   border: 1px solid var(--rule);
   border-radius: 10px;
   padding: 16px 18px;
@@ -116,14 +133,24 @@ main.content {
 }
 .kpi::before {
   content: ""; position: absolute; left: 0; top: 0; bottom: 0;
-  width: 3px; background: var(--teal);
+  width: 4px; background: var(--teal);
+}
+.kpi.accent {
+  background: linear-gradient(145deg, #ffffff 0%, var(--accent-50) 130%);
 }
 .kpi.accent::before { background: var(--accent); }
+.kpi.green {
+  background: linear-gradient(145deg, #ffffff 0%, var(--green-50) 130%);
+}
 .kpi.green::before  { background: var(--green); }
+.kpi.red {
+  background: linear-gradient(145deg, #ffffff 0%, var(--red-50) 130%);
+}
 .kpi.red::before    { background: var(--red); }
 
 .kpi .label {
-  color: var(--muted); font-size: 11px; font-weight: 600;
+  color: var(--navy); opacity: 0.7;
+  font-size: 11px; font-weight: 700;
   letter-spacing: 0.06em; text-transform: uppercase;
 }
 .kpi .value {
@@ -134,10 +161,10 @@ main.content {
 }
 .kpi .delta {
   margin-top: 6px;
-  font-size: 12px; color: var(--muted);
+  font-size: 12px; color: var(--slate);
 }
-.kpi .delta.up    { color: var(--green); }
-.kpi .delta.down  { color: var(--red); }
+.kpi .delta.up    { color: var(--green); font-weight: 600; }
+.kpi .delta.down  { color: var(--red);   font-weight: 600; }
 
 /* ── Card frame ────────────────────────────────────────────── */
 .row {
@@ -154,16 +181,27 @@ main.content {
   border-radius: 10px;
   box-shadow: var(--shadow);
   padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+}
+/* Subtle top-edge accent strip — every card gets a hint of brand
+   colour without painting walls. */
+.card::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--navy) 0%, var(--teal) 60%, var(--accent) 100%);
+  opacity: 0.65;
 }
 .card h3 {
   margin: 0 0 4px; color: var(--navy);
   font-size: 14px; font-weight: 700; letter-spacing: -0.005em;
 }
 .card .cardsub {
-  color: var(--muted); font-size: 12px; margin-bottom: 14px;
+  color: var(--slate); opacity: 0.78;
+  font-size: 12px; margin-bottom: 14px;
 }
 .card .legend {
-  display: flex; gap: 16px; font-size: 12px; color: var(--muted);
+  display: flex; gap: 16px; font-size: 12px; color: var(--slate);
   margin-top: 8px;
 }
 .card .legend .dot {
@@ -173,14 +211,23 @@ main.content {
 
 /* ── Table ─────────────────────────────────────────────────── */
 .table-card { padding: 0; overflow: hidden; }
+.table-card::before { display: none; } /* let the header own the colour band */
 .table-card .head {
   padding: 16px 20px 12px;
   display: flex; align-items: center;
   border-bottom: 1px solid var(--rule);
+  background: linear-gradient(180deg, var(--card-tint) 0%, #ffffff 100%);
+  border-top: 3px solid;
+  border-image: linear-gradient(90deg, var(--navy) 0%, var(--teal) 60%, var(--accent) 100%) 1;
 }
 .table-card .head h3 { margin: 0; }
 .table-card .head .count {
-  margin-left: auto; color: var(--muted); font-size: 12px;
+  margin-left: auto; color: var(--slate); font-size: 12px;
+  background: #fff;
+  border: 1px solid var(--rule);
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 700;
 }
 
 table {
@@ -189,11 +236,12 @@ table {
   font-variant-numeric: tabular-nums;
 }
 thead th {
-  text-align: left; font-weight: 600;
-  color: var(--muted); font-size: 11px;
+  text-align: left; font-weight: 700;
+  color: var(--navy); opacity: 0.75;
+  font-size: 11px;
   letter-spacing: 0.06em; text-transform: uppercase;
   padding: 10px 16px;
-  background: #fafbfd;
+  background: var(--card-tint);
   border-bottom: 1px solid var(--rule);
 }
 tbody td {
@@ -201,24 +249,25 @@ tbody td {
   border-bottom: 1px solid var(--rule);
   font-size: 13px;
 }
+tbody tr:nth-child(even) td { background: rgba(244, 246, 250, 0.55); }
 tbody tr:last-child td { border-bottom: 0; }
-tbody tr:hover td { background: #fafbfd; }
+tbody tr:hover td { background: var(--teal-50); }
 td.num { text-align: right; }
 td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--slate); }
 
 .pill {
   display: inline-block;
-  font-size: 11px; font-weight: 600;
-  padding: 2px 8px; border-radius: 999px;
-  letter-spacing: 0.02em;
+  font-size: 11px; font-weight: 700;
+  padding: 3px 9px; border-radius: 999px;
+  letter-spacing: 0.04em;
 }
-.pill.model    { background: var(--teal-50); color: var(--teal); }
+.pill.model    { background: var(--teal-50);   color: var(--teal); }
 .pill.fallback { background: var(--accent-50); color: var(--accent); }
-.pill.kill     { background: var(--red-50); color: var(--red); }
+.pill.kill     { background: var(--red-50);    color: var(--red); }
 
 .residual {
   display: inline-flex; align-items: center; gap: 6px;
-  font-weight: 600;
+  font-weight: 700;
 }
 .residual.up   { color: var(--green); }
 .residual.down { color: var(--red); }
@@ -245,11 +294,12 @@ footer.foot .divider {
 .errorbox {
   background: var(--red-50);
   color: var(--red);
+  border: 1px solid rgba(185, 52, 29, 0.25);
   border-radius: 8px;
 }
 
 .skeleton {
-  background: linear-gradient(90deg, #eef0f4 0%, #f6f7fa 50%, #eef0f4 100%);
+  background: linear-gradient(90deg, #e3e7ee 0%, #f0f3f8 50%, #e3e7ee 100%);
   background-size: 200% 100%;
   animation: shimmer 1.4s linear infinite;
   border-radius: 6px;
