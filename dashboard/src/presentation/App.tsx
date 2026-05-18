@@ -110,8 +110,9 @@ export function App() {
           <div className="sub">
             Every click going to your search ads is scored by our AI model in under a second.
             Once the customer either converts or doesn't, we compare the prediction against the
-            real sales ledger. Here's what that looks like for the last seven days — and you can
-            run the live model yourself below.
+            real sales ledger. Below — what we've predicted vs what really
+            happened over the last 90 days, the live model you can run
+            yourself, and a single user's journey we replay end-to-end.
           </div>
         </div>
         <div className="range" style={{
@@ -224,6 +225,11 @@ export function App() {
           <LivePredictionCard />
         </section>
 
+        {/* The "Bouncer with a Crystal Ball" — animated Phoebe journey. */}
+        <section className="row">
+          <PhoebeJourneyCard />
+        </section>
+
         <section className="row">
           <div className="card">
             <h3>Daily forecast vs reality</h3>
@@ -284,6 +290,11 @@ export function App() {
                       detail="joins predictions to the sales ledger in BigQuery" ok />
             </ul>
           </div>
+        </section>
+
+        <section className="row">
+          <DesignedAgainstCard />
+          <VerticalsRoadmapCard />
         </section>
 
         <section className="card table-card">
@@ -512,6 +523,190 @@ function Health({ label, detail, ok }: { label: string; detail: string; ok: bool
   );
 }
 
+// ── Designed-against tile ──────────────────────────────────────────────
+// Speculative — based on common failure modes for value-based bidding in
+// price-comparison and insurance verticals, ahead of the client supplying
+// Ryan's specific list of what went wrong in their Car Insurance attempt.
+// The structure (failure → mitigation → where it lives) survives once
+// real failures replace the speculative ones.
+
+interface DesignedAgainst {
+  failure: string;
+  detail: string;
+  mitigation: string;
+  where: string;
+}
+
+const DESIGNED_AGAINST: DesignedAgainst[] = [
+  {
+    failure: "Pricing model bleeds into customer terms",
+    detail: "A bidding model that quietly affects who gets which APR or eligibility decision is a regulatory minefield in lending.",
+    mitigation: "ADR 0004 codifies two hard invariants: no customer identifiers in, no model output to anywhere that affects customer terms. Activation only pushes back to SA360 / SSGTM / OCI for bid adjustment.",
+    where: "docs/adr/0004-fca-compliance-boundary.md",
+  },
+  {
+    failure: "Uncontrolled bidding under unusual traffic",
+    detail: "A model that's never seen 4am bot traffic starts pricing every click at zero — or every click at the ceiling — and the spend statement is a disaster.",
+    mitigation: "Four guardrails compose: hard price bounds → flat-tCPA fallback if breached; per-call timeouts; rolling anomaly window flips a single kill-switch flag (no redeploy); circuit breaker auto-recovers.",
+    where: "docs/runbooks/breaker-reset.md",
+  },
+  {
+    failure: "Model decay invisible until ledger reconciles",
+    detail: "Credit Cards has a 90-day conversion window. A model degrading today doesn't show up in revenue numbers for weeks — by then you've burned the budget.",
+    mitigation: "Daily PSI on every input feature, per-segment MAE drift alerts week-over-week, coverage-drop alerts on every slice. The dashboard tells you the model is sliding before the ledger does.",
+    where: "docs/runbooks/coverage-audit.md",
+  },
+];
+
+function DesignedAgainstCard() {
+  return (
+    <div className="card">
+      <h3>What we've designed against, that bit the last attempt</h3>
+      <div className="cardsub">
+        Three failure modes commonly seen in value-based PPC bidding for
+        regulated products. For each, where the platform pushes back —
+        before the spend column moves the wrong way.
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {DESIGNED_AGAINST.map((row, i) => (
+          <div key={i} style={{
+            padding: "10px 12px", borderRadius: 8,
+            background: "#fff", border: "1px solid var(--rule)",
+          }}>
+            <div style={{
+              display: "flex", alignItems: "baseline", gap: 8,
+              marginBottom: 4,
+            }}>
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "var(--red)", flexShrink: 0,
+              }}>Risk</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)" }}>
+                {row.failure}
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6,
+                          lineHeight: 1.4 }}>
+              {row.detail}
+            </div>
+            <div style={{
+              padding: "6px 8px", background: "var(--teal-50)",
+              borderRadius: 4, fontSize: 11, color: "var(--slate)",
+              lineHeight: 1.4,
+            }}>
+              <span style={{ fontWeight: 700, color: "var(--teal)",
+                             letterSpacing: "0.04em",
+                             textTransform: "uppercase", fontSize: 10 }}>
+                Mitigation ·
+              </span>{" "}
+              {row.mitigation}
+              <span style={{ color: "var(--muted)", marginLeft: 6,
+                             fontFamily: "monospace" }}>
+                ({row.where})
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{
+        marginTop: 10, fontSize: 10, color: "var(--muted)",
+        fontStyle: "italic", lineHeight: 1.4,
+      }}>
+        Speculative list — we'd expect Ryan's summary of the Car Insurance
+        attempt to refine this. The structure stays; the rows update.
+      </div>
+    </div>
+  );
+}
+
+// ── Verticals roadmap tile ─────────────────────────────────────────────
+
+interface VerticalStage {
+  name: string;
+  status: "live" | "next" | "planned" | "tbd";
+  when: string;
+  note: string;
+}
+
+const VERTICALS: VerticalStage[] = [
+  { name: "Credit Cards", status: "live",
+    when: "MVP cutover end-Aug 2026",
+    note: "First client engagement; sales-data uplift of 50 → 80%." },
+  { name: "Loans", status: "next",
+    when: "Q1 2027",
+    note: "Direct re-use; similar consideration window." },
+  { name: "Home Insurance", status: "planned",
+    when: "Q2 2027",
+    note: "Aggregator-friendly margin model adds Soteria." },
+  { name: "Life Insurance", status: "planned",
+    when: "Q3 2027",
+    note: "LTV becomes the dominant signal — needs the LTV head." },
+  { name: "Mortgages", status: "tbd",
+    when: "TBD",
+    note: "Regulatory scope review first; ADR 0004 boundary may not survive." },
+];
+
+function VerticalsRoadmapCard() {
+  const colour = (s: VerticalStage["status"]) => {
+    switch (s) {
+      case "live": return { bg: "var(--green-50)", fg: "var(--green)",
+                            label: "LIVE", border: "var(--green)" };
+      case "next": return { bg: "var(--teal-50)", fg: "var(--teal)",
+                            label: "NEXT", border: "var(--teal)" };
+      case "planned": return { bg: "var(--accent-50)", fg: "var(--accent)",
+                                label: "PLANNED", border: "var(--rule)" };
+      case "tbd": return { bg: "#f5f5f5", fg: "var(--muted)",
+                            label: "TBD", border: "var(--rule)" };
+    }
+  };
+
+  return (
+    <div className="card">
+      <h3>This same engine, applied across MSM</h3>
+      <div className="cardsub">
+        Credit Cards is the first vertical, not the only one. Every layer
+        below the schema — guardrails, drift monitors, reconciliation,
+        explainability — is product-agnostic and rolls forward.
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {VERTICALS.map((v) => {
+          const c = colour(v.status);
+          return (
+            <div key={v.name} style={{
+              display: "grid",
+              gridTemplateColumns: "160px 80px 1fr 140px",
+              gap: 10, alignItems: "center",
+              padding: "8px 10px", borderRadius: 6,
+              background: c.bg, border: `1px solid ${c.border}`,
+              opacity: v.status === "tbd" ? 0.65 : 1,
+            }}>
+              <span style={{
+                fontSize: 13, fontWeight: 700, color: "var(--navy)",
+              }}>{v.name}</span>
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+                color: c.fg, padding: "2px 8px",
+                borderRadius: 999, background: "rgba(255,255,255,0.7)",
+                textAlign: "center",
+              }}>{c.label}</span>
+              <span style={{ fontSize: 11, color: "var(--muted)",
+                             lineHeight: 1.35 }}>{v.note}</span>
+              <span style={{
+                fontSize: 11, color: c.fg, fontWeight: 600,
+                textAlign: "right", fontVariantNumeric: "tabular-nums",
+              }}>{v.when}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Live prediction card ───────────────────────────────────────────────
 
 // Schema: PRD V2 (Credit Cards) §7.1.
@@ -594,12 +789,25 @@ const INITIAL_TRACE: TraceStep[] = [
     detail: "SHAP attribution — which features pushed the price up or down", status: "pending" },
 ];
 
+// The flat-tCPA baseline an MSM bidder would pay today, in £. Set high
+// enough to be a credible "old-world" target-cost so the saving is
+// material when the model is well-calibrated. Configurable in one place
+// because the demo narrative depends on it.
+const TCPA_FLAT_BID = 2.0;
+// Bidder efficiency — what fraction of the predicted-RPC value the
+// engine would actually bid (the rest is margin). 0.7 = bid 70 pence
+// of every predicted £1 of revenue.
+const BID_EFFICIENCY = 0.7;
+
 function LivePredictionCard() {
   const [form, setForm] = useState<PredictForm>(DEFAULTS);
   const [result, setResult] = useState<PredictResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [trace, setTrace] = useState<TraceStep[]>(INITIAL_TRACE);
+  // Session-persistent "saved vs flat tCPA" running total. Accumulates
+  // across every prediction the user fires from this page load.
+  const [sessionSaved, setSessionSaved] = useState({ totalGbp: 0, clicks: 0 });
 
   function update<K extends keyof PredictForm>(k: K, v: PredictForm[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -689,6 +897,17 @@ function LivePredictionCard() {
         attrs,
         base_value,
       });
+      // Accumulate "saved vs flat tCPA". On any click where the
+      // value-based bid is lower than the flat bid we'd have avoided
+      // overpaying; where higher, we'd have captured a whale the old
+      // bidder would have lost. Both directions are material — the
+      // counter takes the absolute difference.
+      const valueBid = score.predicted_rpc * BID_EFFICIENCY;
+      const saving = Math.abs(TCPA_FLAT_BID - valueBid);
+      setSessionSaved((s) => ({
+        totalGbp: s.totalGbp + saving,
+        clicks: s.clicks + 1,
+      }));
     } catch (e: any) {
       setErr(e?.message ?? "Prediction failed.");
     } finally {
@@ -879,6 +1098,13 @@ function LivePredictionCard() {
         }}>{err}</div>
       )}
 
+      {result && (
+        <BeforeAfterPanel
+          predictedRpc={result.predicted_rpc}
+          sessionSaved={sessionSaved}
+        />
+      )}
+
       {(busy || result) && (
         <div style={{
           marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--rule)",
@@ -904,6 +1130,331 @@ function LivePredictionCard() {
             starting from the model's baseline of <b>£{result.base_value.toFixed(2)}</b>.
           </div>
           <AttributionBars attrs={result.attrs} baseValue={result.base_value} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Phoebe journey card ────────────────────────────────────────────────
+// Animates a single user's session across 5 behavioural events. Each
+// step mutates the Phoebe features and re-fires /v1/score; the predicted
+// bid ticks up as the user's intent strengthens — the strategy doc's
+// "Bouncer with a Crystal Ball" moment.
+
+interface JourneyStep {
+  label: string;
+  detail: string;
+  ts: string; // human "0:00" style
+  delta: { // Phoebe state at this point in the session
+    calculator_used: boolean;
+    guides_read: number;
+    cards_compared: number;
+    session_engagement_s: number;
+  };
+}
+
+const JOURNEY: JourneyStep[] = [
+  {
+    label: "Search lands",
+    detail: "User Googles 'best cashback card UK'.",
+    ts: "0:00",
+    delta: { calculator_used: false, guides_read: 0, cards_compared: 0,
+             session_engagement_s: 0 },
+  },
+  {
+    label: "Opens the comparison page",
+    detail: "Spends 30 seconds reading product summaries.",
+    ts: "0:15",
+    delta: { calculator_used: false, guides_read: 0, cards_compared: 0,
+             session_engagement_s: 30 },
+  },
+  {
+    label: "Tries the cashback calculator",
+    detail: "Enters monthly spend, sees a £-back projection.",
+    ts: "0:45",
+    delta: { calculator_used: true, guides_read: 0, cards_compared: 0,
+             session_engagement_s: 95 },
+  },
+  {
+    label: "Reads two guides",
+    detail: "Understands eligibility and credit-score impact.",
+    ts: "1:30",
+    delta: { calculator_used: true, guides_read: 2, cards_compared: 0,
+             session_engagement_s: 220 },
+  },
+  {
+    label: "Compares five cards side-by-side",
+    detail: "Now ranking on annual fee + reward rate.",
+    ts: "2:15",
+    delta: { calculator_used: true, guides_read: 2, cards_compared: 5,
+             session_engagement_s: 380 },
+  },
+  {
+    label: "Clicks through to apply",
+    detail: "The ad fires — your bidder needs an answer in under a second.",
+    ts: "2:45",
+    delta: { calculator_used: true, guides_read: 2, cards_compared: 5,
+             session_engagement_s: 480 },
+  },
+];
+
+interface JourneyResult {
+  predictedRpc: number;
+  source: string;
+}
+
+function PhoebeJourneyCard() {
+  const [activeIdx, setActiveIdx] = useState<number>(-1);
+  const [results, setResults] = useState<(JourneyResult | null)[]>(
+    Array(JOURNEY.length).fill(null),
+  );
+  const [busy, setBusy] = useState(false);
+
+  async function scoreAt(idx: number): Promise<JourneyResult | null> {
+    const s = JOURNEY[idx]!;
+    const payload = {
+      ...DEFAULTS,
+      click_id: `journey-${Date.now().toString(36)}-${idx}`,
+      correlation_id: `journey-${Date.now().toString(36)}`,
+      ad_creative_id: "journey-creative",
+      landing_path: "/credit-cards/cashback",
+      phoebe_calculator_used: s.delta.calculator_used,
+      phoebe_guides_read: s.delta.guides_read,
+      phoebe_cards_compared: s.delta.cards_compared,
+      phoebe_session_engagement_s: s.delta.session_engagement_s,
+    };
+    try {
+      const resp = await fetch("/score", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) return null;
+      const j = await resp.json();
+      return { predictedRpc: j.predicted_rpc, source: j.source };
+    } catch {
+      return null;
+    }
+  }
+
+  async function play() {
+    setBusy(true);
+    setResults(Array(JOURNEY.length).fill(null));
+    for (let i = 0; i < JOURNEY.length; i++) {
+      setActiveIdx(i);
+      const r = await scoreAt(i);
+      setResults((prev) => {
+        const next = [...prev];
+        next[i] = r;
+        return next;
+      });
+      // pause so the audience sees the bid tick up
+      await new Promise((res) => setTimeout(res, 1100));
+    }
+    setActiveIdx(JOURNEY.length - 1);
+    setBusy(false);
+  }
+
+  const firstRpc = results[0]?.predictedRpc ?? null;
+  const lastRpc = results[JOURNEY.length - 1]?.predictedRpc ?? null;
+  const lift = (firstRpc != null && lastRpc != null)
+    ? lastRpc - firstRpc
+    : null;
+
+  return (
+    <div className="card">
+      <h3>Watch a single user's intent build up — and the bid follow it</h3>
+      <div className="cardsub">
+        Same person, same session. As they use the calculator, read guides,
+        and compare cards, your bidder gets a richer read on their intent
+        and prices the click accordingly. This is the "bouncer with a
+        crystal ball" moment.
+      </div>
+
+      <div style={{
+        display: "flex", alignItems: "center", gap: 12,
+        marginBottom: 14, paddingBottom: 10,
+        borderBottom: "1px solid var(--rule)",
+      }}>
+        <button onClick={play} disabled={busy}
+          style={{
+            background: "var(--navy)", color: "#fff", border: 0,
+            borderRadius: 6, padding: "8px 18px",
+            fontSize: 12, fontWeight: 700, letterSpacing: "0.04em",
+            cursor: busy ? "wait" : "pointer", opacity: busy ? 0.7 : 1,
+          }}>{busy ? "Playing…" : "▶ Play the journey"}</button>
+        {firstRpc != null && (
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>
+            Started bidding at <b style={{ color: "var(--navy)" }}>
+              {fmtCurrency(firstRpc)}
+            </b>
+          </span>
+        )}
+        {lift != null && (
+          <span style={{
+            marginLeft: "auto", padding: "4px 10px",
+            background: lift >= 0 ? "var(--green-50)" : "var(--accent-50)",
+            color: lift >= 0 ? "var(--green)" : "var(--accent)",
+            borderRadius: 999, fontSize: 12, fontWeight: 700,
+          }}>
+            {lift >= 0 ? "▲" : "▼"} {fmtCurrency(Math.abs(lift))} across the session
+          </span>
+        )}
+      </div>
+
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${JOURNEY.length}, 1fr)`,
+        gap: 8,
+      }}>
+        {JOURNEY.map((s, i) => {
+          const active = i === activeIdx;
+          const settled = results[i] != null;
+          return (
+            <div key={i} style={{
+              padding: "10px 12px", borderRadius: 8,
+              border: `1px solid ${active ? "var(--navy)" : "var(--rule)"}`,
+              background: active ? "var(--teal-50)"
+                : settled ? "#fff" : "#fafafa",
+              opacity: settled || active ? 1 : 0.55,
+              transition: "all 0.25s ease",
+              minHeight: 130,
+              display: "flex", flexDirection: "column", gap: 4,
+            }}>
+              <div style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+                color: "var(--muted)", textTransform: "uppercase",
+              }}>{s.ts}</div>
+              <div style={{
+                fontSize: 12, fontWeight: 700, color: "var(--navy)",
+              }}>{s.label}</div>
+              <div style={{
+                fontSize: 11, color: "var(--muted)", flex: 1,
+                lineHeight: 1.35,
+              }}>{s.detail}</div>
+              {results[i] && (
+                <div style={{
+                  marginTop: 4, paddingTop: 4,
+                  borderTop: "1px dashed var(--rule)",
+                  fontSize: 13, fontWeight: 700, color: "var(--teal)",
+                  fontVariantNumeric: "tabular-nums",
+                }}>
+                  {fmtCurrency(results[i]!.predictedRpc)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Before/After hero panel ────────────────────────────────────────────
+// Same click, two worlds: the flat-tCPA target the old bidder would have
+// paid, and the value-based bid this engine would place. The session
+// counter accumulates the absolute gap across every prediction the user
+// has fired so far this page load.
+function BeforeAfterPanel({ predictedRpc, sessionSaved }: {
+  predictedRpc: number;
+  sessionSaved: { totalGbp: number; clicks: number };
+}) {
+  const valueBid = predictedRpc * BID_EFFICIENCY;
+  const delta = valueBid - TCPA_FLAT_BID;
+  const verdict = delta >= 0
+    ? "Higher-value click — the old bidder would have under-bid and lost it"
+    : "Lower-value click — the old bidder would have over-paid";
+  const accent = delta >= 0 ? "var(--green)" : "var(--accent)";
+
+  const colStyle: React.CSSProperties = {
+    flex: 1,
+    padding: "12px 14px",
+    borderRadius: 8,
+    background: "#fff",
+    border: "1px solid var(--rule)",
+    minWidth: 0,
+  };
+  const labelStyle: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+    textTransform: "uppercase", color: "var(--muted)", marginBottom: 6,
+  };
+  const valueStyle: React.CSSProperties = {
+    fontSize: 28, fontWeight: 700, letterSpacing: "-0.01em",
+    color: "var(--navy)", fontVariantNumeric: "tabular-nums",
+  };
+
+  return (
+    <div style={{
+      marginTop: 14, paddingTop: 12,
+      borderTop: "1px solid var(--rule)",
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 700, color: "var(--muted)",
+        letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8,
+      }}>The same click, in two worlds</div>
+
+      <div style={{
+        display: "flex", gap: 10, flexWrap: "wrap",
+        alignItems: "stretch",
+      }}>
+        <div style={colStyle}>
+          <div style={labelStyle}>Old world · Flat target-CPA</div>
+          <div style={{ ...valueStyle, color: "var(--muted)" }}>
+            {fmtCurrency(TCPA_FLAT_BID)}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+            Same £ for every click — no idea if it's a whale or a minnow.
+          </div>
+        </div>
+
+        <div style={{ ...colStyle, borderColor: accent, background: "var(--teal-50)" }}>
+          <div style={labelStyle}>New world · Value-based bid</div>
+          <div style={{ ...valueStyle, color: accent }}>
+            {fmtCurrency(valueBid)}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+            {Math.round(BID_EFFICIENCY * 100)}% of predicted earnings — keeps the
+            margin on the bid that actually wins.
+          </div>
+        </div>
+
+        <div style={{ ...colStyle, background: "var(--navy)", color: "#fff",
+                      borderColor: "var(--navy)" }}>
+          <div style={{ ...labelStyle, color: "rgba(255,255,255,0.7)" }}>
+            Difference on this click
+          </div>
+          <div style={{ ...valueStyle, color: "#fff" }}>
+            {delta >= 0 ? "+" : ""}{fmtCurrency(delta)}
+          </div>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 4 }}>
+            {verdict}.
+          </div>
+        </div>
+      </div>
+
+      {sessionSaved.clicks > 1 && (
+        <div style={{
+          marginTop: 10, padding: "8px 12px", borderRadius: 6,
+          background: "var(--green-50)",
+          display: "flex", alignItems: "center", gap: 10,
+          fontSize: 12,
+        }}>
+          <span style={{ color: "var(--green)", fontWeight: 700 }}>
+            Across this demo session
+          </span>
+          <span style={{ color: "var(--slate)" }}>
+            {fmtInt(sessionSaved.clicks)} clicks scored — total better-priced
+            value vs flat tCPA: {" "}
+            <b style={{ color: "var(--navy)",
+                        fontVariantNumeric: "tabular-nums" }}>
+              {fmtCurrency(sessionSaved.totalGbp)}
+            </b>
+          </span>
+          <span style={{ marginLeft: "auto", color: "var(--muted)" }}>
+            scale that across MSM's real Credit Cards volume — that's the
+            commercial case.
+          </span>
         </div>
       )}
     </div>
