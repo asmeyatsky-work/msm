@@ -17,6 +17,7 @@ SELECT
   c.click_ts,
   UNIX_MILLIS(c.click_ts) AS click_ts_ms,
   c.vertical_id,
+  c.user_pseudo_id,
   c.device,
   c.geo,
   EXTRACT(HOUR FROM c.click_ts) AS hour_of_day,
@@ -38,4 +39,4 @@ LEFT JOIN ${ref("sales_ledger")} r
   ON  r.click_id = c.click_id
   AND r.revenue_ts BETWEEN c.click_ts
       AND TIMESTAMP_ADD(c.click_ts, INTERVAL ${dataform.projectConfig.vars.conversion_window_days || 90} DAY)
-GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17

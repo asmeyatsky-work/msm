@@ -1,0 +1,58 @@
+config {
+  type: "table",
+  schema: "rpc_estimator",
+  description: "Per-cookie 30-day behavioural rollup from GA4 (Phoebe). Joined into rpc_training_rows and pushed to the Vertex feature store for serving-time lookup. Schema: PRD V2 (Credit Cards) §7.1; data contract: docs/data-contract-phoebe.md.\n\nThe GA4 export dataset name is parameterised via dataform.projectConfig.vars.ga4_dataset; for the staging env this defaults to a non-existent dataset so the workflow no-ops before GA4 access is granted (OQ-11). When the table doesn't exist Dataform will skip this view's downstream consumers gracefully because the join is LEFT JOIN with COALESCE defaults.",
+  bigquery: {
+    partitionBy: "DATE(window_end_ts)",
+    clusterBy: ["user_pseudo_id"],
+  },
+}
+
+-- Best-current-guess Phoebe feature derivation against the standard GA4
+-- BigQuery export schema. The four event-name patterns below are the ones
+-- the strategy doc names; the actual MSM event taxonomy is OQ-12 and may
+-- require re-mapping in week 2. When in doubt, treat this view as a
+-- contract: the *output columns* are stable, the *event matchers* are not.
+
+WITH events AS (
+  SELECT
+    user_pseudo_id,
+    TIMESTAMP_MICROS(event_timestamp) AS event_ts,
+    event_name,
+    -- Calculator interaction: any event whose name contains "calculator".
+    REGEXP_CONTAINS(LOWER(event_name), r"calculator") AS is_calculator_event,
+    -- Guide page read: page_view on a path matching /credit-cards/.../guide.
+    (event_name = "page_view"
+      AND REGEXP_CONTAINS(
+        (SELECT value.string_value FROM UNNEST(event_params)
+         WHERE key = "page_location" LIMIT 1),
+        r"/credit-cards/.*/guide"
+      )) AS is_guide_event,
+    -- Card comparison event: "select_item" with item_category = "credit_card",
+    -- one row per card so we COUNT DISTINCT below.
+    (event_name = "select_item"
+      AND (SELECT value.string_value FROM UNNEST(event_params)
+           WHERE key = "item_category" LIMIT 1) = "credit_card") AS is_compare_event,
+    (SELECT value.string_value FROM UNNEST(event_params)
+     WHERE key = "item_id" LIMIT 1) AS compared_item_id,
+    -- Engagement time (ms) on this event.
+    COALESCE((SELECT value.int_value FROM UNNEST(event_params)
+              WHERE key = "engagement_time_msec" LIMIT 1), 0) AS engagement_ms
+  FROM `${dataform.projectConfig.vars.ga4_dataset || 'analytics_unknown'}.events_*`
+  WHERE _TABLE_SUFFIX BETWEEN
+    FORMAT_DATE("%Y%m%d", DATE_SUB(CURRENT_DATE("UTC"), INTERVAL 30 DAY))
+    AND FORMAT_DATE("%Y%m%d", CURRENT_DATE("UTC"))
+)
+SELECT
+  user_pseudo_id,
+  CURRENT_TIMESTAMP() AS window_end_ts,
+  -- bool: did this cookie touch a calculator at all in the window?
+  LOGICAL_OR(is_calculator_event) AS phoebe_calculator_used,
+  -- int: distinct guide-page reads in the window.
+  COUNTIF(is_guide_event) AS phoebe_guides_read,
+  -- int: distinct card products compared in the window.
+  COUNT(DISTINCT IF(is_compare_event, compared_item_id, NULL)) AS phoebe_cards_compared,
+  -- float: total engaged time in seconds.
+  SUM(engagement_ms) / 1000.0 AS phoebe_session_engagement_s
+FROM events
+GROUP BY user_pseudo_id

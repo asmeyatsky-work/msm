@@ -12,6 +12,8 @@ def _fv(**overrides):
         prior_applicant=False, income_band_bucket="mid",
         auction_pressure=0.5, rpc_14d=1.0, rpc_60d=1.0,
         visits_prev_30d=2,
+        phoebe_calculator_used=True, phoebe_guides_read=1,
+        phoebe_cards_compared=3, phoebe_session_engagement_s=200.0,
     )
     base.update(overrides)
     return FeatureVector(**base)
@@ -31,6 +33,8 @@ def test_feature_vector_happy():
     ("vertical_id", ""),
     ("product_type", ""),
     ("income_band_bucket", "vip"),
+    ("phoebe_guides_read", -1),
+    ("phoebe_session_engagement_s", -1.0),
 ])
 def test_feature_vector_rejects(field, value):
     with pytest.raises(ValueError):

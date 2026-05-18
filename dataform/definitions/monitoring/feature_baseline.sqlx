@@ -25,7 +25,10 @@ WITH features AS (
     STRUCT("rpc_60d",                    rpc_60d),
     STRUCT("hour_of_day",                CAST(hour_of_day AS FLOAT64)),
     STRUCT("auction_pressure",           auction_pressure),
-    STRUCT("visits_prev_30d",            CAST(visits_prev_30d AS FLOAT64))
+    STRUCT("visits_prev_30d",            CAST(visits_prev_30d AS FLOAT64)),
+    STRUCT("phoebe_guides_read",         CAST(phoebe_guides_read AS FLOAT64)),
+    STRUCT("phoebe_cards_compared",      CAST(phoebe_cards_compared AS FLOAT64)),
+    STRUCT("phoebe_session_engagement_s", phoebe_session_engagement_s)
   ])
 ),
 ranked AS (

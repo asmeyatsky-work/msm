@@ -19,6 +19,11 @@ export const FEATURE_LABEL: Record<string, string> = {
   query_intent:       "Search intent",
   ad_creative_id:     "Ad creative",
   landing_path:       "Landing page",
+  // Phoebe (PRD V2 §7.1).
+  phoebe_calculator_used:      "Used a calculator",
+  phoebe_guides_read:          "Guides read (30d)",
+  phoebe_cards_compared:       "Cards compared (30d)",
+  phoebe_session_engagement_s: "Time engaged (seconds)",
 };
 
 export function humanise(feature: string): string {

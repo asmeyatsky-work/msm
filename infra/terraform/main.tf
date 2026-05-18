@@ -249,6 +249,10 @@ resource "google_bigquery_table" "clicks_view" {
       SELECT
         JSON_EXTRACT_SCALAR(data, '$.click_id')        AS click_id,
         JSON_EXTRACT_SCALAR(data, '$.correlation_id')  AS correlation_id,
+        -- Phoebe join key (PRD V2 §7.1). Optional in the wire schema —
+        -- NULL means we have no GA4 link for this click and Phoebe
+        -- features fall through to defaults at training time.
+        JSON_EXTRACT_SCALAR(data, '$.user_pseudo_id')  AS user_pseudo_id,
         TIMESTAMP(JSON_EXTRACT_SCALAR(data, '$.click_ts')) AS click_ts,
         COALESCE(JSON_EXTRACT_SCALAR(data, '$.vertical_id'), 'credit_cards') AS vertical_id,
         JSON_EXTRACT_SCALAR(data, '$.device')          AS device,

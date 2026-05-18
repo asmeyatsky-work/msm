@@ -14,6 +14,8 @@ from msm_ml.application.ports import ModelTrainer
 _FEATURE_ORDER: tuple[str, ...] = (
     "hour_of_day", "affinity_score", "rpc_14d", "rpc_60d",
     "prior_applicant", "auction_pressure", "visits_prev_30d",
+    "phoebe_calculator_used", "phoebe_guides_read",
+    "phoebe_cards_compared", "phoebe_session_engagement_s",
 )
 
 

@@ -24,7 +24,19 @@ SELECT
   COALESCE(rr.rpc_60d, 0.0) AS rpc_60d,
   COALESCE(a.auction_pressure, 0.5) AS auction_pressure,
   cr.visits_prev_30d,
+  -- Phoebe features. Joined on user_pseudo_id when the click stream carries
+  -- it (preferred); falls back to defaults until the click contract is
+  -- extended. OQ-12 (event taxonomy) is the gating client decision; the
+  -- click→cookie join key is OQ-13 (open).
+  COALESCE(ph.phoebe_calculator_used, FALSE) AS phoebe_calculator_used,
+  COALESCE(ph.phoebe_guides_read, 0) AS phoebe_guides_read,
+  COALESCE(ph.phoebe_cards_compared, 0) AS phoebe_cards_compared,
+  COALESCE(ph.phoebe_session_engagement_s, 0.0) AS phoebe_session_engagement_s,
   cr.target_revenue
 FROM ${ref("click_revenue")} cr
 LEFT JOIN ${ref("rolling_rpc")} rr USING (click_id)
 LEFT JOIN ${ref("sa360_auctions")} a ON a.click_id = cr.click_id
+-- Phoebe join: keyed on user_pseudo_id when the click stream carries it.
+-- Falls through to NULL → defaults above when missing.
+LEFT JOIN ${ref("phoebe_features")} ph
+  ON ph.user_pseudo_id = cr.user_pseudo_id

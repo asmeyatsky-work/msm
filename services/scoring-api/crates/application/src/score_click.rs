@@ -435,6 +435,10 @@ mod tests {
             rpc_60d: 1.0,
             landing_path: "/".into(),
             visits_prev_30d: 1,
+            phoebe_calculator_used: false,
+            phoebe_guides_read: 0,
+            phoebe_cards_compared: 0,
+            phoebe_session_engagement_s: 0.0,
         })
         .unwrap()
     }

@@ -537,6 +537,11 @@ interface PredictForm {
   rpc_14d: number;
   rpc_60d: number;
   visits_prev_30d: number;
+  // Phoebe / GA4 behavioural features — PRD V2 §7.1.
+  phoebe_calculator_used: boolean;
+  phoebe_guides_read: number;
+  phoebe_cards_compared: number;
+  phoebe_session_engagement_s: number;
 }
 
 const DEFAULTS: PredictForm = {
@@ -554,6 +559,10 @@ const DEFAULTS: PredictForm = {
   rpc_14d: 1.92,
   rpc_60d: 1.78,
   visits_prev_30d: 3,
+  phoebe_calculator_used: true,
+  phoebe_guides_read: 2,
+  phoebe_cards_compared: 4,
+  phoebe_session_engagement_s: 320,
 };
 
 interface PredictResult {
@@ -792,6 +801,27 @@ function LivePredictionCard() {
           <input type="number" step={1} min={0} style={inputStyle}
                  value={form.visits_prev_30d}
                  onChange={(e) => update("visits_prev_30d", parseInt(e.target.value || "0"))} /></div>
+
+        {/* Phoebe / GA4 behavioural features (PRD V2 §7.1) */}
+        <div><label style={labelStyle}>Used a calculator on this visit?</label>
+          <select style={inputStyle}
+                  value={form.phoebe_calculator_used ? "yes" : "no"}
+                  onChange={(e) => update("phoebe_calculator_used", e.target.value === "yes")}>
+            <option value="no">No</option>
+            <option value="yes">Yes</option>
+          </select></div>
+        <div><label style={labelStyle}>Guides read in the last 30 days</label>
+          <input type="number" step={1} min={0} style={inputStyle}
+                 value={form.phoebe_guides_read}
+                 onChange={(e) => update("phoebe_guides_read", parseInt(e.target.value || "0"))} /></div>
+        <div><label style={labelStyle}>Cards compared in the last 30 days</label>
+          <input type="number" step={1} min={0} style={inputStyle}
+                 value={form.phoebe_cards_compared}
+                 onChange={(e) => update("phoebe_cards_compared", parseInt(e.target.value || "0"))} /></div>
+        <div><label style={labelStyle}>Time engaged on the site (seconds)</label>
+          <input type="number" step={1} min={0} style={inputStyle}
+                 value={form.phoebe_session_engagement_s}
+                 onChange={(e) => update("phoebe_session_engagement_s", parseFloat(e.target.value || "0"))} /></div>
       </div>
 
       <div style={{

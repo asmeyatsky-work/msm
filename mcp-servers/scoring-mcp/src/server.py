@@ -46,6 +46,10 @@ class ScoreInput(BaseModel):
     rpc_60d: float = Field(ge=0.0)
     landing_path: str
     visits_prev_30d: int = Field(ge=0)
+    phoebe_calculator_used: bool = False
+    phoebe_guides_read: int = Field(default=0, ge=0)
+    phoebe_cards_compared: int = Field(default=0, ge=0)
+    phoebe_session_engagement_s: float = Field(default=0.0, ge=0.0)
 
 
 @mcp.tool()

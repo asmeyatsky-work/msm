@@ -11,7 +11,11 @@
         "rpc_60d",
         "prior_applicant",
         "auction_pressure",
-        "visits_prev_30d"
+        "visits_prev_30d",
+        "phoebe_calculator_used",
+        "phoebe_guides_read",
+        "phoebe_cards_compared",
+        "phoebe_session_engagement_s"
       ]
     }
   },

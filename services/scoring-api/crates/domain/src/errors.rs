@@ -18,6 +18,8 @@ pub enum DomainError {
     EmptyProductType,
     #[error("invalid income_band_bucket: {0} (expected low|mid|high|null)")]
     InvalidIncomeBand(String),
+    #[error("invalid phoebe_session_engagement_s: {0} (expected non-negative finite)")]
+    InvalidPhoebeEngagement(String),
     #[error("bounds inverted: min {min} > max {max}")]
     BoundsInverted { min: String, max: String },
 }

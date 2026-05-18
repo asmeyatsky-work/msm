@@ -34,6 +34,8 @@ def _fv():
         prior_applicant=False, income_band_bucket=None,
         auction_pressure=0.5, rpc_14d=1.0, rpc_60d=1.0,
         visits_prev_30d=1,
+        phoebe_calculator_used=False, phoebe_guides_read=0,
+        phoebe_cards_compared=0, phoebe_session_engagement_s=0.0,
     )
 
 

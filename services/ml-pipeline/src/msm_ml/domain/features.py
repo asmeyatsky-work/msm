@@ -29,6 +29,11 @@ class FeatureVector:
     rpc_14d: float
     rpc_60d: float
     visits_prev_30d: int
+    # Phoebe / GA4 behavioural features (PRD V2 §7.1).
+    phoebe_calculator_used: bool = False
+    phoebe_guides_read: int = 0
+    phoebe_cards_compared: int = 0
+    phoebe_session_engagement_s: float = 0.0
 
     def __post_init__(self) -> None:
         if not self.click_id:
@@ -48,6 +53,14 @@ class FeatureVector:
                 raise ValueError(f"{name} invalid: {v}")
         if self.income_band_bucket is not None and self.income_band_bucket not in _INCOME_BANDS:
             raise ValueError(f"income_band_bucket invalid: {self.income_band_bucket}")
+        for name, v in (
+            ("phoebe_guides_read", self.phoebe_guides_read),
+            ("phoebe_cards_compared", self.phoebe_cards_compared),
+        ):
+            if v < 0:
+                raise ValueError(f"{name} invalid: {v}")
+        if self.phoebe_session_engagement_s < 0 or self.phoebe_session_engagement_s != self.phoebe_session_engagement_s:
+            raise ValueError(f"phoebe_session_engagement_s invalid: {self.phoebe_session_engagement_s}")
 
     def as_map(self) -> Mapping[str, float | int | bool | str | None]:
         return {
@@ -64,4 +77,8 @@ class FeatureVector:
             "rpc_14d": self.rpc_14d,
             "rpc_60d": self.rpc_60d,
             "visits_prev_30d": self.visits_prev_30d,
+            "phoebe_calculator_used": self.phoebe_calculator_used,
+            "phoebe_guides_read": self.phoebe_guides_read,
+            "phoebe_cards_compared": self.phoebe_cards_compared,
+            "phoebe_session_engagement_s": self.phoebe_session_engagement_s,
         }

@@ -41,7 +41,9 @@ impl ModelEndpoint for VertexEndpoint {
         // Feature order MUST match training (see services/ml-pipeline/.../xgboost_trainer.py
         // _FEATURE_ORDER). CC schema (PRD V2 §7.1):
         //   hour_of_day, affinity_score, rpc_14d, rpc_60d,
-        //   prior_applicant, auction_pressure, visits_prev_30d
+        //   prior_applicant, auction_pressure, visits_prev_30d,
+        //   phoebe_calculator_used, phoebe_guides_read,
+        //   phoebe_cards_compared, phoebe_session_engagement_s
         let body = serde_json::json!({
             "instances": [[
                 features.hour_of_day() as f64,
@@ -51,6 +53,10 @@ impl ModelEndpoint for VertexEndpoint {
                 if features.prior_applicant() { 1.0 } else { 0.0 },
                 features.auction_pressure(),
                 features.visits_prev_30d() as f64,
+                if features.phoebe_calculator_used() { 1.0 } else { 0.0 },
+                features.phoebe_guides_read() as f64,
+                features.phoebe_cards_compared() as f64,
+                features.phoebe_session_engagement_s(),
             ]]
         });
         let resp = self

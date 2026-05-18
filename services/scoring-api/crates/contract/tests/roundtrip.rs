@@ -27,6 +27,10 @@ fn sample() -> ScoreRequest {
             rpc_60d: 1.1,
             landing_path: "/credit-cards/cashback".into(),
             visits_prev_30d: 3,
+            phoebe_calculator_used: true,
+            phoebe_guides_read: 2,
+            phoebe_cards_compared: 4,
+            phoebe_session_engagement_s: 320.5,
         }),
     }
 }

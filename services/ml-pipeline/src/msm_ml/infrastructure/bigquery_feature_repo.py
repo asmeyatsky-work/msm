@@ -27,7 +27,10 @@ class BigQueryFeatureRepo(FeatureRepo):
           product_type, card_product_id, query_intent,
           affinity_score, prior_applicant, income_band_bucket,
           auction_pressure, rpc_14d, rpc_60d,
-          visits_prev_30d, target_revenue
+          visits_prev_30d,
+          phoebe_calculator_used, phoebe_guides_read,
+          phoebe_cards_compared, phoebe_session_engagement_s,
+          target_revenue
         FROM `{self._project}.{self._dataset}.{_TRAINING_VIEW}`
         WHERE click_ts_ms BETWEEN @start_ms AND @end_ms
         """
@@ -60,6 +63,10 @@ class BigQueryFeatureRepo(FeatureRepo):
                 rpc_14d=float(row["rpc_14d"]),
                 rpc_60d=float(row["rpc_60d"]),
                 visits_prev_30d=int(row["visits_prev_30d"]),
+                phoebe_calculator_used=bool(row.get("phoebe_calculator_used") or False),
+                phoebe_guides_read=int(row.get("phoebe_guides_read") or 0),
+                phoebe_cards_compared=int(row.get("phoebe_cards_compared") or 0),
+                phoebe_session_engagement_s=float(row.get("phoebe_session_engagement_s") or 0.0),
             )
             out.append((fv, float(row["target_revenue"])))
         return out

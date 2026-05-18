@@ -52,6 +52,18 @@ struct ScoreRequest {
     rpc_60d: f64,
     landing_path: String,
     visits_prev_30d: u32,
+    // Phoebe (GA4) — defaulted so upstream callers can omit them before
+    // the GA4-aware bidder rolls out. A defaulted ClickFeatures is the
+    // equivalent of "no behavioural signal yet" for this cookie, which
+    // the model learns to handle directly.
+    #[serde(default)]
+    phoebe_calculator_used: bool,
+    #[serde(default)]
+    phoebe_guides_read: u32,
+    #[serde(default)]
+    phoebe_cards_compared: u32,
+    #[serde(default)]
+    phoebe_session_engagement_s: f64,
 }
 
 fn default_vertical() -> String {
@@ -85,6 +97,10 @@ impl ScoreRequest {
             rpc_60d: self.rpc_60d,
             landing_path: self.landing_path,
             visits_prev_30d: self.visits_prev_30d,
+            phoebe_calculator_used: self.phoebe_calculator_used,
+            phoebe_guides_read: self.phoebe_guides_read,
+            phoebe_cards_compared: self.phoebe_cards_compared,
+            phoebe_session_engagement_s: self.phoebe_session_engagement_s,
         }
     }
 }

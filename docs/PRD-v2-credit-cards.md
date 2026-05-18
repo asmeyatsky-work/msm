@@ -575,6 +575,7 @@ Tracked here so we don't lose them. Each blocks something.
 | OQ-10 | Production traffic on the client side: which bidder, which platform (SA360 / direct), failure semantics | Activation integration | Client engineering |
 | **OQ-11** | **GA4 BigQuery export — read access for the platform SA on `analytics_<property>` dataset; which property covers Credit Cards traffic; retention** | **Week 1 — without this the whole MVP slips, this is the new critical-path gate** | **Client analytics** |
 | **OQ-12** | **GA4 event taxonomy on the MSM site — which `event_name` values map to "calculator used", "guide read", "card compare"? The four Phoebe features in §7.1 are best-current-guess from the strategy doc and must be validated against real events** | **Phoebe schema discovery in week 2** | **Client analytics + Searce** |
+| **OQ-13** | **Click→cookie join key — how does `user_pseudo_id` arrive on the click payload? Server-side CM360+GA4 merge, first-party-cookie pass-through, or no join (Phoebe defaults for all)?** | **Phoebe serving-time lookup** | **Client engineering** |
 
 ---
 

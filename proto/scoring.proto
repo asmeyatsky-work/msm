@@ -34,6 +34,12 @@ message ClickFeatures {
   // Session/landing
   string landing_path = 50;
   int32 visits_prev_30d = 51;
+
+  // Phoebe / GA4 behavioural features (PRD V2 §7.1)
+  bool   phoebe_calculator_used      = 60;
+  int32  phoebe_guides_read          = 61;
+  int32  phoebe_cards_compared       = 62;
+  double phoebe_session_engagement_s = 63;
 }
 
 message ScoreRequest {

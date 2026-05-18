@@ -43,6 +43,10 @@ impl ExplainEndpoint for VertexExplain {
                 if features.prior_applicant() { 1.0 } else { 0.0 },
                 features.auction_pressure(),
                 features.visits_prev_30d() as f64,
+                if features.phoebe_calculator_used() { 1.0 } else { 0.0 },
+                features.phoebe_guides_read() as f64,
+                features.phoebe_cards_compared() as f64,
+                features.phoebe_session_engagement_s(),
             ]]
         });
         let resp = self
@@ -71,7 +75,7 @@ impl ExplainEndpoint for VertexExplain {
         //       "featureAttributions": {"features": [0.3, 1.2, ...]}
         // The deployed `rpc-estimator` model uses shape (B); we still accept
         // (A) so the integration tests' fake Vertex stays valid.
-        const FEATURE_NAMES: [&str; 7] = [
+        const FEATURE_NAMES: [&str; 11] = [
             "hour_of_day",
             "affinity_score",
             "rpc_14d",
@@ -79,6 +83,10 @@ impl ExplainEndpoint for VertexExplain {
             "prior_applicant",
             "auction_pressure",
             "visits_prev_30d",
+            "phoebe_calculator_used",
+            "phoebe_guides_read",
+            "phoebe_cards_compared",
+            "phoebe_session_engagement_s",
         ];
         let attr = parsed
             .pointer("/explanations/0/attributions/0")

@@ -39,6 +39,10 @@ fn features() -> ClickFeatures {
         rpc_60d: 1.0,
         landing_path: "/".into(),
         visits_prev_30d: 1,
+        phoebe_calculator_used: false,
+        phoebe_guides_read: 0,
+        phoebe_cards_compared: 0,
+        phoebe_session_engagement_s: 0.0,
     })
     .unwrap()
 }
@@ -90,7 +94,8 @@ async fn vertex_explain_parses_indexed_array_shape() {
             "explanations": [{"attributions": [{
                 "baselineOutputValue": -4.1,
                 "featureAttributions": {
-                    "features": [0.39, 3.10, 8.55, -1.05, -0.28, 0.07, 0.06]
+                    "features": [0.39, 3.10, 8.55, -1.05, -0.28, 0.07, 0.06,
+                                 0.11, 0.42, 1.30, 0.20]
                 }
             }]}]
         })))
@@ -99,7 +104,7 @@ async fn vertex_explain_parses_indexed_array_shape() {
     let ep = VertexExplain::new(format!("{}/explain", server.uri()), Duration::from_secs(2));
     let a = ep.explain(&features()).await.unwrap();
     assert!((a.base_value - (-4.1)).abs() < 1e-9);
-    assert_eq!(a.contributions.len(), 7);
+    assert_eq!(a.contributions.len(), 11);
     // CC schema feature order; index 2 = rpc_14d which is the max value (8.55).
     assert_eq!(a.top_features(1)[0].0, "rpc_14d");
 }

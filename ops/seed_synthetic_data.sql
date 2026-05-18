@@ -50,7 +50,21 @@ WITH rand AS (
     RAND() * 5 AS rpc_60d,
     RAND() AS auction_pressure,
     '/credit-cards/' || FORMAT('%03d', CAST(RAND() * 20 AS INT64)) AS landing_path,
-    CAST(RAND() * 10 AS INT64) AS visits_prev_30d
+    CAST(RAND() * 10 AS INT64) AS visits_prev_30d,
+    -- Phoebe / GA4 behavioural features (PRD V2 §7.1). Distributions
+    -- chosen so that high behavioural signal correlates with revenue
+    -- in the sales-ledger generator — the model should pick this up
+    -- as a real Phoebe lift.
+    RAND() < 0.40 AS phoebe_calculator_used,
+    CAST(RAND() * 8 AS INT64) AS phoebe_guides_read,
+    CAST(RAND() * 12 AS INT64) AS phoebe_cards_compared,
+    POW(RAND(), 0.7) * 600 AS phoebe_session_engagement_s,
+    -- Phoebe join key. ~70% of synthetic clicks have a user_pseudo_id
+    -- to simulate the GA4 cookie match-rate Phoebe expects in
+    -- production.
+    IF(RAND() < 0.70,
+       FORMAT('upid-%05d', CAST(RAND() * 3500 AS INT64)),
+       NULL) AS user_pseudo_id
   FROM UNNEST(GENERATE_ARRAY(1, 5000)) AS n
 )
 SELECT * FROM rand;
@@ -61,13 +75,20 @@ CREATE OR REPLACE TABLE `msm-rpc.rpc_estimator_staging.sales_ledger_synthetic` A
 SELECT
   GENERATE_UUID() AS ledger_event_id,
   click_id,
-  -- Revenue = base + affinity × weight + rpc_14d × weight + geo bonus + noise
+  -- Revenue = base + affinity × weight + rpc_14d × weight + geo bonus +
+  --           Phoebe signal × weight + noise. The Phoebe term models the
+  --           strategy doc's "Bouncer with a Crystal Ball" — users who
+  --           used a calculator and compared multiple cards convert at
+  --           materially higher revenue than browsers.
   GREATEST(
     0.0,
     0.5
     + affinity_score * 10.0
     + rpc_14d * 2.0
     + IF(geo = 'GB', 2.0, IF(geo = 'US', 1.5, 0.5))
+    + IF(phoebe_calculator_used, 3.0, 0.0)
+    + phoebe_cards_compared * 0.25
+    + (phoebe_session_engagement_s / 600.0) * 1.5
     + (RAND() - 0.5) * 3.0
   ) AS revenue,
   CAST(NULL AS FLOAT64) AS margin_rate, -- Soteria not yet wired
@@ -108,6 +129,10 @@ SELECT
   c.rpc_60d,
   c.auction_pressure,
   c.visits_prev_30d,
+  c.phoebe_calculator_used,
+  c.phoebe_guides_read,
+  c.phoebe_cards_compared,
+  c.phoebe_session_engagement_s,
   COALESCE(s.revenue * COALESCE(s.margin_rate, 1.0), 0.0) AS target_revenue
 FROM `msm-rpc.rpc_estimator_staging.synthetic_clicks` c
 LEFT JOIN `msm-rpc.rpc_estimator_staging.sales_ledger_synthetic` s

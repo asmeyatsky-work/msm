@@ -57,6 +57,12 @@ pub struct ClickFeatures {
 
     landing_path: String,
     visits_prev_30d: u32,
+
+    // Phoebe / GA4 behavioural features — PRD V2 §7.1 (Credit Cards).
+    phoebe_calculator_used: bool,
+    phoebe_guides_read: u32,
+    phoebe_cards_compared: u32,
+    phoebe_session_engagement_s: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -79,6 +85,10 @@ pub struct ClickFeaturesInput {
     pub rpc_60d: f64,
     pub landing_path: String,
     pub visits_prev_30d: u32,
+    pub phoebe_calculator_used: bool,
+    pub phoebe_guides_read: u32,
+    pub phoebe_cards_compared: u32,
+    pub phoebe_session_engagement_s: f64,
 }
 
 impl ClickFeatures {
@@ -107,6 +117,14 @@ impl ClickFeatures {
                 return Err(DomainError::InvalidRpc(format!("{name}={v}")));
             }
         }
+        if i.phoebe_session_engagement_s.is_nan()
+            || i.phoebe_session_engagement_s.is_infinite()
+            || i.phoebe_session_engagement_s < 0.0
+        {
+            return Err(DomainError::InvalidPhoebeEngagement(
+                i.phoebe_session_engagement_s.to_string(),
+            ));
+        }
         if let Some(ref b) = i.income_band_bucket {
             if !matches!(b.as_str(), "low" | "mid" | "high") {
                 return Err(DomainError::InvalidIncomeBand(b.clone()));
@@ -131,6 +149,10 @@ impl ClickFeatures {
             rpc_60d: i.rpc_60d,
             landing_path: i.landing_path,
             visits_prev_30d: i.visits_prev_30d,
+            phoebe_calculator_used: i.phoebe_calculator_used,
+            phoebe_guides_read: i.phoebe_guides_read,
+            phoebe_cards_compared: i.phoebe_cards_compared,
+            phoebe_session_engagement_s: i.phoebe_session_engagement_s,
         })
     }
 
@@ -175,6 +197,18 @@ impl ClickFeatures {
     }
     pub fn auction_pressure(&self) -> f64 {
         self.auction_pressure
+    }
+    pub fn phoebe_calculator_used(&self) -> bool {
+        self.phoebe_calculator_used
+    }
+    pub fn phoebe_guides_read(&self) -> u32 {
+        self.phoebe_guides_read
+    }
+    pub fn phoebe_cards_compared(&self) -> u32 {
+        self.phoebe_cards_compared
+    }
+    pub fn phoebe_session_engagement_s(&self) -> f64 {
+        self.phoebe_session_engagement_s
     }
 
     /// Returns a new instance with fresh rolling signals (§3.3 immutable; state
@@ -222,6 +256,10 @@ mod tests {
             rpc_60d: 1.1,
             landing_path: "/credit-cards/cashback".into(),
             visits_prev_30d: 3,
+            phoebe_calculator_used: true,
+            phoebe_guides_read: 2,
+            phoebe_cards_compared: 4,
+            phoebe_session_engagement_s: 320.5,
         }
     }
 
@@ -295,5 +333,15 @@ mod tests {
         let mut i = valid_input();
         i.income_band_bucket = None;
         assert!(ClickFeatures::try_new(i).is_ok());
+    }
+
+    #[test]
+    fn rejects_negative_phoebe_engagement() {
+        let mut i = valid_input();
+        i.phoebe_session_engagement_s = -1.0;
+        assert!(matches!(
+            ClickFeatures::try_new(i),
+            Err(DomainError::InvalidPhoebeEngagement(_))
+        ));
     }
 }
