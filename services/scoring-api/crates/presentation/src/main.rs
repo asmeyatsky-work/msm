@@ -73,9 +73,13 @@ impl ScoreRequest {
             affinity_score: self.affinity_score,
             ad_creative_id: self.ad_creative_id,
             prior_applicant: self.prior_applicant,
-            income_band_bucket: self
-                .income_band_bucket
-                .and_then(|s| if s.is_empty() { None } else { Some(s) }),
+            income_band_bucket: self.income_band_bucket.and_then(|s| {
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            }),
             auction_pressure: self.auction_pressure,
             rpc_14d: self.rpc_14d,
             rpc_60d: self.rpc_60d,
