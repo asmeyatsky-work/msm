@@ -249,7 +249,21 @@ resource "google_logging_metric" "coverage_drops" {
   }
 }
 
+# GCP Cloud Monitoring takes "up to 10 minutes" to make a newly-created
+# log-based metric visible. The alert policies below reference those
+# metrics and 404 if we try to create them in the same apply without
+# a propagation wait. 180s is empirically enough; the alerts are
+# eventual-consistency tolerant so we don't need to be precise.
+resource "time_sleep" "wait_for_logging_metrics" {
+  depends_on = [
+    google_logging_metric.drift_breaches,
+    google_logging_metric.coverage_drops,
+  ]
+  create_duration = "180s"
+}
+
 resource "google_monitoring_alert_policy" "drift_breach" {
+  depends_on            = [time_sleep.wait_for_logging_metrics]
   display_name          = "rpc ${var.env} — per-segment MAE drift > 25% W-o-W"
   combiner              = "OR"
   notification_channels = var.alert_notification_channels
@@ -285,6 +299,7 @@ resource "google_monitoring_alert_policy" "drift_breach" {
 }
 
 resource "google_monitoring_alert_policy" "coverage_drop" {
+  depends_on            = [time_sleep.wait_for_logging_metrics]
   display_name          = "rpc ${var.env} — coverage dropped > 10pp W-o-W on a slice"
   combiner              = "OR"
   notification_channels = var.alert_notification_channels

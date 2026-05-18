@@ -160,6 +160,34 @@ jobs:
               "${iam_addr}" "${iam_id}" || echo "import already done or service missing"
           fi
 
+      # predictions_vs_revenue view was created out-of-band via the SQL
+      # template in services/reconciliation/sql/ before it was added to
+      # Terraform. Import it on first apply that has the resource;
+      # idempotent thereafter.
+      - name: import pre-existing predictions_vs_revenue view (one-time, idempotent)
+        working-directory: infra/terraform
+        env:
+          PROJECT: ${{ vars.GCP_PROJECT }}
+          ENV: staging
+        run: |
+          set -e
+          view_addr='google_bigquery_table.predictions_vs_revenue_view'
+          view_id="projects/${PROJECT}/datasets/rpc_estimator_${ENV}/tables/predictions_vs_revenue"
+          if ! terraform state list | grep -qx "${view_addr}"; then
+            echo "Importing ${view_addr} ..."
+            terraform import \
+              -var-file=envs/staging.tfvars \
+              -var "image_scoring_api=${{ needs.build-push.outputs.image_scoring_api }}" \
+              -var "image_reconciliation=${{ needs.build-push.outputs.image_reconciliation }}" \
+              -var "image_activation=${{ needs.build-push.outputs.image_activation }}" \
+              -var "image_breaker=${{ needs.build-push.outputs.image_breaker }}" \
+              -var "image_ml_pipeline=${{ needs.build-push.outputs.image_ml_pipeline }}" \
+              -var "image_mock_vertex=${{ needs.build-push.outputs.image_mock_vertex }}" \
+              -var "image_dashboard=${{ needs.build-push.outputs.image_dashboard }}" \
+              -var "project_id=${PROJECT}" -var "env=${ENV}" -var "region=europe-west2" \
+              "${view_addr}" "${view_id}" || echo "import already done or view missing"
+          fi
+
       - name: terraform apply
         working-directory: infra/terraform
         env:
