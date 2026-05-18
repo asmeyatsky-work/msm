@@ -78,8 +78,7 @@ event taxonomy needs significant re-mapping against real GA4 rows
    - `phoebe_session_engagement_s` — total engaged-session time (in
      seconds) over the rolling window.
    Refresh cadence is nightly at MVP (sub-hourly is the explicit
-   follow-up — see §11 "Phoebe staleness" risk and ADR 0007). This is a
-   re-plan vs the original strategy-alignment PRD §4 (S4 phase); see
+   follow-up — see §11 "Phoebe staleness" risk and ADR 0007). See
    §13 for the revised timeline.
 
 ### 2.2 In scope (should-have)
@@ -266,9 +265,7 @@ V2 changes:
      (`rpc-estimator/credit-cards@N`) are all in place so a second
      vertical does not trigger a second cross-cutting migration. Cost
      here is ~half a day on top of the CC schema work; deferring it
-     costs the same migration twice. Anticipates
-     `docs/PRD-v2-strategy-alignment.md` §4 (S1) — that phase
-     disappears if this lands.
+     costs the same migration twice.
 6. **Active-versions dashboard panel** for the canary path.
 
 ---
@@ -332,11 +329,10 @@ card_product_id  STRING REQUIRED
   sales-ledger feed as **NULLABLE FLOAT64** for the CC MVP; while the
   client has not supplied a commission table, all rows coalesce to 1.0
   and `realized_rpc` equals `SUM(revenue)` (V1 behaviour, unchanged).
-  Once the Soteria margin table is delivered (per
-  `docs/PRD-v2-strategy-alignment.md` §5.2 / S2), populating
-  `margin_rate` is a data-only change — no view rewrite, no schema
-  migration, and the existing model can be retrained against the new
-  label without touching the API contract.
+  Once a margin table is delivered, populating `margin_rate` is a
+  data-only change — no view rewrite, no schema migration, and the
+  existing model can be retrained against the new label without
+  touching the API contract.
 - `rpc_training_rows` — features joined to labels, used by the
   training pipeline.
 - `coverage_audit` — sliced coverage %.
