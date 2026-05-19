@@ -18,18 +18,20 @@ OUT = Path(__file__).parent / "client-demo-deck.pptx"
 DEMO_URL = "https://dashboard-staging-794974391956.europe-west2.run.app"
 API_URL  = "https://scoring-api-staging-794974391956.europe-west2.run.app"
 
-# Palette — calm, executive
-NAVY   = RGBColor(0x0B, 0x1F, 0x3A)
-TEAL   = RGBColor(0x0F, 0x6E, 0x7A)
-SLATE  = RGBColor(0x33, 0x3F, 0x52)
-LIGHT  = RGBColor(0xF4, 0xF6, 0xFA)
-ACCENT = RGBColor(0xD9, 0x73, 0x06)
-GREEN  = RGBColor(0x1F, 0x8A, 0x4F)
+# Palette — modern corporate; brand-blue led; flat, no gradients/3D.
+# Variable names are kept from the previous deck for minimal churn;
+# semantics shift: TEAL/ACCENT/GREEN now all map to brand-blue tones.
+NAVY   = RGBColor(0x00, 0x26, 0x59)  # deepest brand blue — strong text + stripes
+TEAL   = RGBColor(0x00, 0x64, 0xFF)  # primary brand
+ACCENT = RGBColor(0x00, 0x64, 0xFF)  # primary brand (same — accent is the brand)
+GREEN  = RGBColor(0x42, 0x85, 0xF4)  # secondary blue (was "success / complete")
+SLATE  = RGBColor(0x21, 0x21, 0x21)  # body text — near-black
+MUTED  = RGBColor(0x7D, 0x7D, 0x7D)  # secondary / muted text
+LIGHT  = RGBColor(0xE7, 0xF0, 0xFE)  # card tint
+RULE   = RGBColor(0xD2, 0xE3, 0xFC)  # border / hairline
 WHITE  = RGBColor(0xFF, 0xFF, 0xFF)
-MUTED  = RGBColor(0x6B, 0x73, 0x80)
-RULE   = RGBColor(0xD7, 0xDB, 0xE3)
 
-FONT = "Calibri"
+FONT = "Poppins"
 TOTAL_PAGES = 11
 
 
@@ -189,24 +191,23 @@ def hero_statement(slide, prs, big, sub=None, eyebrow=None,
 
 def slide_cover(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, prs.slide_width, prs.slide_height)
-    fill(bg, NAVY)
+    # Plain white background — no full-bleed colour.
     band = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(4.5),
-                              prs.slide_width, Inches(0.08))
-    fill(band, ACCENT)
+                              prs.slide_width, Inches(0.04))
+    fill(band, TEAL)
 
     eyebrow = s.shapes.add_textbox(Inches(0.7), Inches(1.6), Inches(11), Inches(0.4))
     p = eyebrow.text_frame.paragraphs[0]
     run(p, "PREDICTIVE REVENUE INTELLIGENCE — CREDIT CARDS MVP",
-        size=12, bold=True, color=ACCENT)
+        size=12, bold=True, color=TEAL)
 
     title = s.shapes.add_textbox(Inches(0.7), Inches(2.1), Inches(11), Inches(1.4))
     tf = title.text_frame; tf.word_wrap = True
     p = tf.paragraphs[0]
-    run(p, "Predictive RPC Estimator", size=44, bold=True, color=WHITE)
+    run(p, "Predictive RPC Estimator", size=44, bold=True, color=NAVY)
     p2 = tf.add_paragraph()
     run(p2, "Real-time revenue-per-click forecasting for Credit Cards",
-        size=20, color=LIGHT)
+        size=20, color=SLATE)
 
     sub = s.shapes.add_textbox(Inches(0.7), Inches(4.8), Inches(11), Inches(2))
     tf = sub.text_frame; tf.word_wrap = True
@@ -216,18 +217,18 @@ def slide_cover(prs):
         ("Date", "2026-05-19"),
     ]:
         p = tf.add_paragraph(); p.line_spacing = 1.3
-        run(p, f"{label}    ", size=12, bold=True, color=ACCENT)
-        run(p, val, size=14, color=WHITE)
+        run(p, f"{label}    ", size=12, bold=True, color=TEAL)
+        run(p, val, size=14, color=SLATE)
     p = tf.add_paragraph(); p.line_spacing = 1.5
     run(p, " ", size=8)
     p = tf.add_paragraph()
-    run(p, "Live dashboard:  ", size=11, bold=True, color=ACCENT)
-    run(p, DEMO_URL, size=11, color=LIGHT)
+    run(p, "Live dashboard:  ", size=11, bold=True, color=TEAL)
+    run(p, DEMO_URL, size=11, color=MUTED)
 
 
 def slide_opportunity(prs):
-    """Sharp, hero-statement framing. The villain (flat tCPA) named once,
-    the cost named once, the runway named once."""
+    """Sharp, hero-statement framing. White background, brand-blue accents.
+    The villain (flat tCPA) named once, the cost named once."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
     hero_statement(
         s, prs,
@@ -237,10 +238,9 @@ def slide_opportunity(prs):
             "You see the bill 90 days later — when the ledger reconciles, and the budget is gone."
         ),
         eyebrow="The opportunity",
-        bg_color=NAVY,
     )
 
-    # Three short kickers, right-aligned at the bottom
+    # Three short kickers along the bottom, on white.
     bottom = s.shapes.add_textbox(Inches(0.7), Inches(6.10),
                                   prs.slide_width - Inches(1.4), Inches(0.7))
     tf = bottom.text_frame; tf.word_wrap = True
@@ -249,12 +249,12 @@ def slide_opportunity(prs):
     for i, (eyebrow, text) in enumerate([
         ("WHY CC", "Near-term commercial pressure on the channel."),
         ("WHY NOW", "Sales coverage rising 50% → 80% by end-June."),
-        ("WHY SAFE", "Bid-optimisation only; ADR 0004 keeps the FCA boundary."),
+        ("WHY SAFE", "Bid-optimisation only — model output never touches customer terms."),
     ]):
         if i > 0:
-            run(p, "      ", size=11, color=WHITE)
-        run(p, eyebrow + "  ", size=10, bold=True, color=ACCENT)
-        run(p, text, size=11, color=LIGHT)
+            run(p, "      ", size=11, color=MUTED)
+        run(p, eyebrow + "  ", size=10, bold=True, color=TEAL)
+        run(p, text, size=11, color=SLATE)
 
     footer(s, prs, 2)
 
@@ -272,7 +272,7 @@ def slide_what_we_built(prs):
          "scoring-api (Rust on Cloud Run)  ·  Vertex AI XGBoost endpoint  ·  p95 < 1 s on staging."),
         ("Every prediction explainable",
          "Plain-English attribution chart on every score — auditable for finance and compliance.",
-         "Native SHAP via Vertex explanationSpec  ·  ADR 0004 blocks output from reaching customer terms."),
+         "Native SHAP via Vertex explanationSpec  ·  bid-optimisation only, never customer terms."),
         ("Behavioural intent, day one",
          "The user's session — calculator, guides, compare-N — drives the bid in real time.",
          "Phoebe / GA4 nightly rollup  ·  Vertex Feature Store at serving time."),
@@ -594,8 +594,8 @@ def slide_engineering(prs):
         ("Security + compliance", GREEN, [
             "Per-service service accounts; least-privilege IAM in Terraform",
             "Workload Identity Federation — no long-lived keys in CI",
-            "ADR 0004 — bid-optimisation only, no customer-decisioning surface",
-            "ADR 0005 — GA4 PII boundary: hashed user_pseudo_id only",
+            "Bid-optimisation only — no customer-decisioning surface, model output never reaches customer terms",
+            "GA4 PII boundary — hashed identifiers only, raw user IDs and PII params stripped at ingest",
         ]),
         ("Operability", NAVY, [
             "Tag-push CI → CD → smoke; rollback is a single Vertex traffic-split",
@@ -659,7 +659,7 @@ def slide_data_model(prs):
         ("b", "Sales ledger: multi-stage events (application_started → submitted → approved → activated → first_spend → chargeback) with revenue, margin_rate (profit-ready), card_product_id, currency."),
         ("b", "GA4 / Phoebe: per-cookie 30-day rollup — calculator_used, guides_read, cards_compared, session_engagement_s. Joined at training; looked up at serving."),
         ("h", "Label and reconciliation window"),
-        ("b", "Sum-of-rewards over a 90-day window (ADR 0003 — fits the CC consideration tail). Profit-ready label: SUM(revenue × COALESCE(margin_rate, 1.0))."),
+        ("b", "Sum-of-rewards label over a 90-day window — fits the Credit Cards consideration tail. Profit-ready: when the commission table lands the same view becomes margin-aware with no rewrite."),
         ("h", "Training and release"),
         ("b", "Vertex AI Pipelines run from the same monorepo — reproducible from a commit. Every version in the Vertex Model Registry."),
         ("b", "Canary 10% → 50% over 48h → 100%. Active-versions panel shows the share and rolling MAE side-by-side."),
@@ -694,7 +694,7 @@ def slide_roadmap(prs):
          "End-August 2026", TEAL, [
             "v2 on 80% coverage",
             "Rollback rehearsed",
-            "ADR 0004 / 0005 sign-off",
+            "Compliance sign-off",
             "Handover to on-call",
         ]),
     ]
@@ -755,7 +755,7 @@ def slide_commercials(prs):
          "Confirm the GA4 event taxonomy + click→cookie join key",
          "OQ-12 + OQ-13 — one 60-minute call validates our best-current-guess mappings against your real events."),
         ("3", "Sign-offs", GREEN,
-         "GCP project decision + compliance sign-off on ADRs 0004 and 0005",
+         "GCP project decision + compliance sign-off on the bid-optimisation + GA4 PII boundaries",
          "OQ-1 — client project or namespaced env. The CD job is wired and gated. Two named contacts: one data owner + one engineering lead."),
     ]
 
@@ -805,33 +805,28 @@ def slide_commercials(prs):
 
 def slide_thanks(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, prs.slide_width, prs.slide_height)
-    fill(bg, NAVY)
+    # Plain white background — brand-blue band for visual punctuation.
     band = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(3.6),
-                              prs.slide_width, Inches(0.10))
-    fill(band, ACCENT)
+                              prs.slide_width, Inches(0.06))
+    fill(band, TEAL)
 
-    # Eyebrow
     eb = s.shapes.add_textbox(Inches(0.7), Inches(1.6), Inches(12), Inches(0.4))
     p = eb.text_frame.paragraphs[0]
-    run(p, "OVER TO YOU", size=13, bold=True, color=ACCENT)
+    run(p, "OVER TO YOU", size=13, bold=True, color=TEAL)
 
-    # Hero
     t = s.shapes.add_textbox(Inches(0.7), Inches(2.1), Inches(12), Inches(1.4))
     p = t.text_frame.paragraphs[0]
-    run(p, "Let's get the data flowing.", size=60, bold=True, color=WHITE)
+    run(p, "Let's get the data flowing.", size=60, bold=True, color=NAVY)
 
-    # Subline
     sub = s.shapes.add_textbox(Inches(0.7), Inches(4.0), Inches(12), Inches(1.5))
     tf = sub.text_frame; tf.word_wrap = True
     p = tf.paragraphs[0]; p.line_spacing = 1.30
-    run(p, "GA4 access this week. Event taxonomy next. ", size=20, color=LIGHT)
-    run(p, "Cutover end-August.", size=20, bold=True, color=ACCENT)
+    run(p, "GA4 access this week. Event taxonomy next. ", size=20, color=SLATE)
+    run(p, "Cutover end-August.", size=20, bold=True, color=TEAL)
 
-    # Foot
     foot = s.shapes.add_textbox(Inches(0.7), Inches(6.7), Inches(12), Inches(0.4))
     p = foot.text_frame.paragraphs[0]
-    run(p, f"Live dashboard  ·  {DEMO_URL}", size=11, color=LIGHT)
+    run(p, f"Live dashboard  ·  {DEMO_URL}", size=11, color=MUTED)
 
 
 def main():
