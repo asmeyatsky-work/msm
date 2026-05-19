@@ -147,6 +147,44 @@ def metric_card(slide, left, top, w, h, value, label, value_color=NAVY, accent=T
     lp.line_spacing = 1.1
     run(lp, label, size=11, color=MUTED)
 
+def hero_statement(slide, prs, big, sub=None, eyebrow=None,
+                   bg_color=None, big_color=None, sub_color=None):
+    """Full-bleed hero slide. One enormous statement, optional subline.
+    Designed to land in the gut, not the head."""
+    if bg_color is not None:
+        bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE,
+                                    0, 0, prs.slide_width, prs.slide_height)
+        fill(bg, bg_color)
+        band = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE,
+                                      0, Inches(4.20),
+                                      prs.slide_width, Inches(0.06))
+        fill(band, ACCENT)
+
+    big_color = big_color or (WHITE if bg_color else NAVY)
+    sub_color = sub_color or (LIGHT if bg_color else SLATE)
+
+    if eyebrow:
+        eb = slide.shapes.add_textbox(Inches(0.7), Inches(1.4),
+                                      prs.slide_width - Inches(1.4), Inches(0.4))
+        p = eb.text_frame.paragraphs[0]
+        run(p, eyebrow.upper(), size=13, bold=True, color=ACCENT)
+
+    t = slide.shapes.add_textbox(Inches(0.7), Inches(2.1),
+                                 prs.slide_width - Inches(1.4), Inches(2.2))
+    tf = t.text_frame; tf.word_wrap = True
+    p = tf.paragraphs[0]
+    p.line_spacing = 1.05
+    run(p, big, size=54, bold=True, color=big_color)
+
+    if sub:
+        st = slide.shapes.add_textbox(Inches(0.7), Inches(4.7),
+                                      prs.slide_width - Inches(1.4), Inches(1.8))
+        tf = st.text_frame; tf.word_wrap = True
+        p = tf.paragraphs[0]
+        p.line_spacing = 1.35
+        run(p, sub, size=22, color=sub_color)
+
+
 # ───────────────────────── Slides ─────────────────────────
 
 def slide_cover(prs):
@@ -188,64 +226,113 @@ def slide_cover(prs):
 
 
 def slide_opportunity(prs):
-    """Folds the previous Exec Summary + Opportunity into one tight slide.
-    Business framing first, with the 50%→80% trajectory pinned."""
+    """Sharp, hero-statement framing. The villain (flat tCPA) named once,
+    the cost named once, the runway named once."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    title_bar(s, prs, "The opportunity — Credit Cards, now",
-              eyebrow="Why this vertical, why this quarter")
-    body_box(s, prs, [
-        ("h", "Flat target-CPA wastes spend on the clicks that matter most."),
-        ("p", "Every Credit Cards click is priced the same. The whales — high-value applicants who'd convert at 3× the bid — are under-paid for and lost to rivals. The minnows are over-paid for. You only see the cost 90 days later when the ledger reconciles."),
-        ("h", "Why Credit Cards, why now"),
-        ("b", "Near-term commercial pressure on the channel — first vertical to repay the platform investment."),
-        ("b", "Sales coverage rising 50% → 80% by end-June; the model retrains and canary-deploys as coverage climbs."),
-        ("b", "Lower regulatory risk than Car Insurance: bid-optimisation only, no customer-decisioning surface — the FCA boundary is enforced in the platform (ADR 0004)."),
-        ("h", "What a predictive bid layer changes"),
-        ("b", "Bid the click likely to convert, not the click that already did."),
-        ("b", "Detect campaign degradation before it shows up in revenue — per-segment drift alerts week-over-week."),
-        ("b", "Explain every prediction in plain English — auditable for finance and compliance."),
-    ], font_size=13)
+    hero_statement(
+        s, prs,
+        big="Today every Credit Cards click is priced the same.",
+        sub=(
+            "You overpay for the minnow. You underbid the whale and a rival takes them. "
+            "You see the bill 90 days later — when the ledger reconciles, and the budget is gone."
+        ),
+        eyebrow="The opportunity",
+        bg_color=NAVY,
+    )
+
+    # Three short kickers, right-aligned at the bottom
+    bottom = s.shapes.add_textbox(Inches(0.7), Inches(6.10),
+                                  prs.slide_width - Inches(1.4), Inches(0.7))
+    tf = bottom.text_frame; tf.word_wrap = True
+    p = tf.paragraphs[0]
+    p.line_spacing = 1.30
+    for i, (eyebrow, text) in enumerate([
+        ("WHY CC", "Near-term commercial pressure on the channel."),
+        ("WHY NOW", "Sales coverage rising 50% → 80% by end-June."),
+        ("WHY SAFE", "Bid-optimisation only; ADR 0004 keeps the FCA boundary."),
+    ]):
+        if i > 0:
+            run(p, "      ", size=11, color=WHITE)
+        run(p, eyebrow + "  ", size=10, bold=True, color=ACCENT)
+        run(p, text, size=11, color=LIGHT)
+
     footer(s, prs, 2)
 
 
 def slide_what_we_built(prs):
-    """Solution + deliverables folded. One slide showing the surfaces
-    + what's running underneath."""
+    """Four bold claims as the emotional pitch; the technical proof is
+    a single small-print line under each, not a parallel column of bullets."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    title_bar(s, prs, "What we've built", eyebrow="Live on Google Cloud staging today")
+    title_bar(s, prs, "We've built it. It's live.",
+              eyebrow="What you can see — and what's running underneath")
 
-    # Left column — what the audience interacts with
-    body_box(s, prs, [
-        ("h", "Surfaces (what you see)"),
-        ("b", "Executive dashboard — KPIs in £, 90-day default, product-type filter, coverage-audit panel, active-versions panel."),
-        ("b", "Hero before/after — same click, flat-tCPA vs value-based bid vs the £ difference, with a running session counter."),
-        ("b", "Phoebe journey — animated 6-step replay of a user's intent building up, with the bid following it."),
-        ("b", "Live prediction card — CC-shaped form; plain-English SHAP explanation under every prediction."),
-        ("b", "Designed-against tile — three common failure modes, mapped to the platform mitigation."),
-        ("b", "REST API — same predictions for SA360 / SSGTM / OCI."),
-    ], top=Inches(1.25), left=Inches(0.55), width=Inches(6.2), font_size=11)
+    claims = [
+        ("A bidder with a crystal ball",
+         "Every Credit Cards click is priced in under a second, on its actual likely revenue.",
+         "scoring-api (Rust on Cloud Run)  ·  Vertex AI XGBoost endpoint  ·  p95 < 1 s on staging."),
+        ("Every prediction explainable",
+         "Plain-English attribution chart on every score — auditable for finance and compliance.",
+         "Native SHAP via Vertex explanationSpec  ·  ADR 0004 blocks output from reaching customer terms."),
+        ("Behavioural intent, day one",
+         "The user's session — calculator, guides, compare-N — drives the bid in real time.",
+         "Phoebe / GA4 nightly rollup  ·  Vertex Feature Store at serving time."),
+        ("A safety net you can demo",
+         "Bounds, circuit breaker, kill switch, anomaly window — the failure modes have already been thought through.",
+         "Six Cloud Monitoring alerts  ·  six runbooks  ·  rollback is a Vertex traffic-split."),
+    ]
 
-    # Right column — what's running underneath
-    body_box(s, prs, [
-        ("h", "Underneath (what's running)"),
-        ("b", "scoring-api (Rust on Cloud Run) — p95 < 1 second, kill-switch flag, circuit breaker, bounds → fallback."),
-        ("b", "Vertex AI online endpoint — XGBoost regressor, native SHAP explainability, canary traffic-split for rollout."),
-        ("b", "Reconciliation — BigQuery view joins predictions to the 90-day sales ledger; coverage_audit slices the gaps."),
-        ("b", "Dataform: phoebe_features, residuals_by_segment, drift_breaches_weekly, coverage_drops_weekly."),
-        ("b", "Drift + coverage-drop alerts — Cloud Monitoring policies fire on the dimensions that matter for CC."),
-        ("b", "CD: tag push → build → push → terraform apply → smoke. Rollback is a single Vertex traffic-split."),
-    ], top=Inches(1.25), left=Inches(6.95), width=Inches(6.2), font_size=11)
+    # 2×2 grid of claim cards
+    cw = (prs.slide_width - Inches(1.2) - Inches(0.25)) / 2
+    ch = Inches(2.55)
+    left0 = Inches(0.55); top0 = Inches(1.20); gap = Inches(0.20)
 
-    # Bottom strip — env + URL
+    for i, (head, body, proof) in enumerate(claims):
+        row, col = i // 2, i % 2
+        x = left0 + col * (cw + gap)
+        y = top0 + row * (ch + gap)
+        card = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, y, cw, ch)
+        card.adjustments[0] = 0.04
+        fill(card, WHITE)
+        card.line.color.rgb = RULE; card.line.width = Pt(0.75)
+        # Left accent stripe in our spine palette
+        stripe_color = [TEAL, ACCENT, GREEN, NAVY][i]
+        stripe = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, x, y, Inches(0.08), ch)
+        fill(stripe, stripe_color)
+        # Number badge in the corner
+        num = s.shapes.add_shape(MSO_SHAPE.OVAL,
+                                 x + cw - Inches(0.55), y + Inches(0.20),
+                                 Inches(0.35), Inches(0.35))
+        fill(num, stripe_color)
+        tf = num.text_frame
+        tf.margin_left = Pt(0); tf.margin_right = Pt(0)
+        tf.margin_top = Pt(0); tf.margin_bottom = Pt(0)
+        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+        run(p, str(i + 1), size=14, bold=True, color=WHITE)
+
+        tb = s.shapes.add_textbox(x + Inches(0.30), y + Inches(0.18),
+                                  cw - Inches(0.85), ch - Inches(0.36))
+        tf = tb.text_frame; tf.word_wrap = True
+        p = tf.paragraphs[0]
+        p.line_spacing = 1.10
+        run(p, head, size=20, bold=True, color=NAVY)
+        p2 = tf.add_paragraph(); p2.line_spacing = 1.30
+        p2.space_before = Pt(6)
+        run(p2, body, size=12, color=SLATE)
+        p3 = tf.add_paragraph(); p3.line_spacing = 1.30
+        p3.space_before = Pt(6)
+        run(p3, "Underneath:  ", size=9, bold=True, color=stripe_color)
+        run(p3, proof, size=9, color=MUTED)
+
+    # Bottom URL strip
     bar = s.shapes.add_shape(MSO_SHAPE.RECTANGLE,
                              Inches(0.55), Inches(6.55),
                              prs.slide_width - Inches(1.1), Inches(0.45))
     fill(bar, NAVY)
     tf = bar.text_frame
     tf.margin_left = Inches(0.18); tf.margin_top = Inches(0.10)
-    p = tf.paragraphs[0]
-    run(p, "europe-west2 (London)  ·  managed services only  ·  no client infrastructure to operate  ·  ",
-        size=10, color=LIGHT)
+    p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+    run(p, "Live on staging  ·  europe-west2  ·  ", size=10, color=LIGHT)
     run(p, DEMO_URL, size=10, bold=True, color=ACCENT)
     footer(s, prs, 3)
 
@@ -342,113 +429,222 @@ def slide_architecture(prs):
 
 
 def slide_demo_walkthrough(prs):
-    """Seven-beat walkthrough matching what's on the dashboard now.
-    Two-column layout so it fits at 11pt body."""
+    """Seven beats. Each is a number + headline + one short subline.
+    No paragraph prose — the demo itself does the talking."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    title_bar(s, prs, "Live demo — what you will see",
-              eyebrow="Seven beats, one URL")
+    title_bar(s, prs, "What you'll see, in seven beats",
+              eyebrow="Seven minutes, one URL")
 
-    left_col = [
-        ("h", "1. KPIs + product-type filter"),
-        ("p", "Five KPIs in £; 90-day default window; product-type filter re-segments the chart instantly."),
-        ("h", "2. Coverage panel"),
-        ("p", "Bar chart per product slice; red bars are slices below 60% — the slices that need ingestion backfill before retraining. This is how we answer the 50% question, slice by slice."),
-        ("h", "3. Hero before/after"),
-        ("p", "Same click, three cards: flat tCPA target, value-based bid (predicted RPC × bid efficiency), the £ difference. Session counter accumulates across every prediction the audience fires."),
-        ("h", "4. Live prediction card"),
-        ("p", "Form in CC language — product type, calculator used, guides read, cards compared, time engaged. Press Predict — pipeline trace lights up live: validate → guardrails → Vertex → BigQuery → SHAP."),
+    beats = [
+        ("01", "KPIs in pounds",
+         "Five tiles. 90-day window. Product-type filter."),
+        ("02", "Coverage, slice by slice",
+         "Red bars are the slices that need backfill before retraining."),
+        ("03", "Same click, two worlds",
+         "Flat target-CPA vs value-based bid vs the £ difference, with a running counter."),
+        ("04", "You drive the model",
+         "Predict in CC language; the pipeline trace lights up live."),
+        ("05", "The bouncer with a crystal ball",
+         "Press Play — a user's intent builds up, the bid follows."),
+        ("06", "Why the model said that",
+         "Plain-English SHAP under every prediction."),
+        ("07", "What we've designed against",
+         "Three failure modes named; the verticals after CC named."),
     ]
-    right_col = [
-        ("h", "5. Phoebe journey — bouncer with a crystal ball"),
-        ("p", "Press Play. A user moves through six steps (search → page → calculator → guides → compare-5 → click). The bid ticks up under each step. A lift pill shows the £ delta from first to last."),
-        ("h", "6. Why the model said that"),
-        ("p", "Horizontal-bar SHAP attribution under every prediction. Plain-English names. Auditable for finance and compliance — ADR 0004 blocks these signals from reaching customer terms."),
-        ("h", "7. Designed-against + verticals roadmap"),
-        ("p", "Three failure modes named on screen, each mapped to where the platform pushes back. Five-vertical roadmap: CC live, Loans next, then Home / Life / Mortgages."),
-        ("mute", f"Live dashboard  ·  {DEMO_URL}"),
-    ]
-    body_box(s, prs, left_col,
-             top=Inches(1.25), left=Inches(0.55),
-             width=Inches(6.2), font_size=11, line_spacing=1.15)
-    body_box(s, prs, right_col,
-             top=Inches(1.25), left=Inches(6.95),
-             width=Inches(6.2), font_size=11, line_spacing=1.15)
+
+    # 4-up × 2-down grid for 7 beats; the 8th cell stays empty for the URL strip
+    cols = 4
+    rows = 2
+    grid_w = prs.slide_width - Inches(1.1)
+    grid_h = Inches(4.50)
+    cw = (grid_w - Inches(0.15) * (cols - 1)) / cols
+    ch = (grid_h - Inches(0.20) * (rows - 1)) / rows
+    left0 = Inches(0.55); top0 = Inches(1.35)
+
+    for i, (num, head, sub) in enumerate(beats):
+        col = i % cols; row = i // cols
+        x = left0 + col * (cw + Inches(0.15))
+        y = top0 + row * (ch + Inches(0.20))
+        card = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, y, cw, ch)
+        card.adjustments[0] = 0.06
+        fill(card, WHITE)
+        card.line.color.rgb = RULE; card.line.width = Pt(0.75)
+
+        # Big number, top-left
+        nb = s.shapes.add_textbox(x + Inches(0.18), y + Inches(0.10),
+                                  Inches(1.0), Inches(0.7))
+        p = nb.text_frame.paragraphs[0]
+        run(p, num, size=28, bold=True, color=ACCENT)
+
+        # Headline
+        hb = s.shapes.add_textbox(x + Inches(0.18), y + Inches(0.95),
+                                  cw - Inches(0.36), Inches(0.7))
+        tf = hb.text_frame; tf.word_wrap = True
+        p = tf.paragraphs[0]; p.line_spacing = 1.10
+        run(p, head, size=15, bold=True, color=NAVY)
+
+        # Subline
+        sb = s.shapes.add_textbox(x + Inches(0.18), y + Inches(1.55),
+                                  cw - Inches(0.36), ch - Inches(1.7))
+        tf = sb.text_frame; tf.word_wrap = True
+        p = tf.paragraphs[0]; p.line_spacing = 1.30
+        run(p, sub, size=11, color=SLATE)
+
+    # URL strip in the empty 8th slot
+    x = left0 + 3 * (cw + Inches(0.15))
+    y = top0 + 1 * (ch + Inches(0.20))
+    url_card = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, y, cw, ch)
+    url_card.adjustments[0] = 0.06
+    fill(url_card, NAVY)
+    tf = url_card.text_frame
+    tf.margin_left = Inches(0.20); tf.margin_right = Inches(0.20)
+    tf.margin_top = Inches(0.25)
+    tf.word_wrap = True
+    p = tf.paragraphs[0]
+    run(p, "Live dashboard", size=11, bold=True, color=ACCENT)
+    p2 = tf.add_paragraph(); p2.line_spacing = 1.30; p2.space_before = Pt(8)
+    run(p2, DEMO_URL, size=10, color=WHITE, font="Consolas")
+    p3 = tf.add_paragraph(); p3.line_spacing = 1.30; p3.space_before = Pt(10)
+    run(p3, "One URL. The dashboard auto-calls /v1/score, /v1/explain and /coverage via nginx — nothing else to open.",
+        size=10, color=LIGHT)
+
     footer(s, prs, 5)
 
 
 def slide_tech_choices(prs):
-    """The 'why this stack' slide. Pre-empts CTO-room defaults questions."""
+    """Headline-led tech rationale. The conclusion is the bold line;
+    the reasoning is one sentence beneath. Pre-empts 'are you sure
+    you didn't just pick the default' questions."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    title_bar(s, prs, "Why these technology choices",
-              eyebrow="What we evaluated, and what we chose")
+    title_bar(s, prs, "Why this stack",
+              eyebrow="The headline answer to every CTO question")
 
-    left_col = [
-        ("h", "Hot path — Rust on Cloud Run"),
-        ("b", "Latency budget: p95 ≤ 1.5 s end-to-end; Vertex AI predict dominates ~700 ms. Rust leaves the rest for the safety-net with zero GC jitter."),
-        ("b", "Considered Go and Python; both leave less headroom and complicate the breaker's idempotency."),
-        ("h", "Model — XGBoost on Vertex AI"),
-        ("b", "Feature space is tabular, ~11 columns. GBDT is the empirical leader for tabular regression at this scale."),
-        ("b", "Native SHAP via Vertex explanationSpec — /v1/explain is free; deep models need a separate KernelSHAP that's harder to audit under ADR 0004."),
-        ("b", "Deterministic predict composes with the circuit breaker; transformers' stateful decoding would not."),
-        ("h", "Frontend — TypeScript + React + Vite"),
-        ("b", "Single URL with realtime interactivity (live prediction, Phoebe journey). Zod validates JSON at the boundary."),
+    choices = [
+        ("Rust on Cloud Run",
+         "We need every millisecond Vertex doesn't take.",
+         "GC jitter would eat the safety-net budget. Considered Go and Python and rejected both."),
+        ("XGBoost on Vertex AI",
+         "Tabular data + auditable predictions + a circuit breaker that has to compose.",
+         "GBDT wins tabular. Native SHAP comes free. Transformers' stateful decoding breaks the breaker."),
+        ("TypeScript + React + Vite",
+         "One URL with realtime interactivity, no server-side rendering.",
+         "Zod validates JSON at the boundary. The dashboard is a static-asset deploy."),
+        ("Protobuf",
+         "Wire stability across Rust ↔ Python; CI parity test guards drift.",
+         "Considered JSON Schema and rejected — loses on-wire byte-stability."),
+        ("Dataform on BigQuery",
+         "Same primitives as dbt; one fewer tool for the client to install.",
+         "Type-safe ref()s give us the DAG automatically. coverage_audit, drift_breaches, residuals all light up in order."),
+        ("Workload Identity Federation",
+         "No long-lived secrets in CI. No keys to rotate, leak, or audit.",
+         "GitHub OIDC federates into GCP. Every IAM grant is in Terraform."),
     ]
-    right_col = [
-        ("h", "Contracts — Protobuf"),
-        ("b", "Wire stability across Rust ↔ Python; codegen per language; CI parity test guards drift."),
-        ("h", "Data layer — Dataform on BigQuery"),
-        ("b", "Same primitives as dbt; one less tool the client must install. Type-safe ref()s give us the dependency graph automatically."),
-        ("h", "Identity — Workload Identity Federation"),
-        ("b", "GitHub OIDC federates into GCP. No long-lived service-account keys to rotate or leak."),
-        ("b", "Per-service service accounts; every IAM grant in Terraform — reviewable in git, not in the console."),
-        ("h", "Runtime — Cloud Run"),
-        ("b", "Request-driven autoscaling; min=1 keeps demo warm at ~£3–5/day; ramps under load without paging us."),
-        ("b", "Considered GKE — overkill for a stateless CPU-bound service; we'd pay cluster overhead we don't use."),
-    ]
-    body_box(s, prs, left_col,
-             top=Inches(1.20), left=Inches(0.5),
-             width=Inches(6.2), font_size=10, line_spacing=1.15)
-    body_box(s, prs, right_col,
-             top=Inches(1.20), left=Inches(6.85),
-             width=Inches(6.2), font_size=10, line_spacing=1.15)
+
+    # 3-col × 2-row grid
+    cols = 3; rows = 2
+    grid_w = prs.slide_width - Inches(1.1)
+    grid_h = Inches(5.40)
+    cw = (grid_w - Inches(0.20) * (cols - 1)) / cols
+    ch = (grid_h - Inches(0.20) * (rows - 1)) / rows
+    left0 = Inches(0.55); top0 = Inches(1.25)
+
+    for i, (head, why, detail) in enumerate(choices):
+        col = i % cols; row = i // cols
+        x = left0 + col * (cw + Inches(0.20))
+        y = top0 + row * (ch + Inches(0.20))
+        card = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, y, cw, ch)
+        card.adjustments[0] = 0.06
+        fill(card, WHITE)
+        card.line.color.rgb = RULE; card.line.width = Pt(0.75)
+        # Top accent
+        stripe = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, x, y, cw, Inches(0.08))
+        fill(stripe, TEAL if i % 2 == 0 else ACCENT)
+
+        tb = s.shapes.add_textbox(x + Inches(0.20), y + Inches(0.25),
+                                  cw - Inches(0.40), ch - Inches(0.40))
+        tf = tb.text_frame; tf.word_wrap = True
+        p = tf.paragraphs[0]; p.line_spacing = 1.10
+        run(p, head, size=16, bold=True, color=NAVY)
+        p2 = tf.add_paragraph(); p2.space_before = Pt(8); p2.line_spacing = 1.30
+        run(p2, why, size=12, bold=True, color=SLATE)
+        p3 = tf.add_paragraph(); p3.space_before = Pt(8); p3.line_spacing = 1.30
+        run(p3, detail, size=10, color=MUTED)
+
     footer(s, prs, 6)
 
 
 def slide_engineering(prs):
-    """Folds previous Engineering + Security + Operability into one
-    production-grade slide. The 'we know how to run this' answer."""
+    """Inspection-sticker layout. Four production-readiness blocks, each
+    with a big checkmark and the two or three things that matter."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
     title_bar(s, prs, "Production-grade engineering",
-              eyebrow="What runs underneath the demo")
+              eyebrow="The boring slide that makes the system bulletproof")
 
-    left_col = [
-        ("h", "Reliability"),
-        ("b", "Bounds → flat-tCPA fallback on every prediction."),
-        ("b", "Circuit breaker on the model endpoint; auto-recover when healthy."),
-        ("b", "Anomaly window on null-rates flips a single kill-switch flag — no redeploy."),
-        ("b", "Per-call timeouts on model + warehouse — no request hangs."),
-        ("h", "Observability"),
-        ("b", "Cloud Logging + Trace + Monitoring out of the box."),
-        ("b", "Six alert policies: latency p95, 5xx rate, breaker trips, anomaly state, per-segment MAE drift > 25% W-o-W, coverage drop > 10pp W-o-W."),
-        ("b", "Service-level objective: 99.5% availability on /v1/score, 30-day rolling."),
+    blocks = [
+        ("Reliability", TEAL, [
+            "Bounds → flat-tCPA fallback on every prediction",
+            "Circuit breaker auto-recovers; kill switch is a single flag, no redeploy",
+            "Per-call timeouts on model + warehouse — no request hangs",
+        ]),
+        ("Observability", ACCENT, [
+            "Six Cloud Monitoring alerts: latency, 5xx, breaker, anomaly, per-segment drift, coverage drop",
+            "Cloud Logging + Trace baked in",
+            "SLO: 99.5% availability on /v1/score, 30-day rolling",
+        ]),
+        ("Security + compliance", GREEN, [
+            "Per-service service accounts; least-privilege IAM in Terraform",
+            "Workload Identity Federation — no long-lived keys in CI",
+            "ADR 0004 — bid-optimisation only, no customer-decisioning surface",
+            "ADR 0005 — GA4 PII boundary: hashed user_pseudo_id only",
+        ]),
+        ("Operability", NAVY, [
+            "Tag-push CI → CD → smoke; rollback is a single Vertex traffic-split",
+            "Six runbooks committed: breaker reset, model rollback, secret rotation, coverage audit, BQ schema migration, endpoint scale-down",
+        ]),
     ]
-    right_col = [
-        ("h", "Security + compliance"),
-        ("b", "Per-service service accounts; least-privilege IAM in Terraform — every grant is reviewable in git."),
-        ("b", "Workload Identity Federation — no long-lived secrets in CI."),
-        ("b", "Secret Manager with versioning; rotation is a runbooked one-liner."),
-        ("b", "ADR 0004 — bid-optimisation boundary: no customer identifiers in; no output reaches anything that affects customer terms."),
-        ("b", "ADR 0005 — GA4 / Phoebe PII boundary: hashed user_pseudo_id only; raw user_id and PII params stripped at the staging view."),
-        ("h", "Operability"),
-        ("b", "Tag-push CI → CD → smoke; rollback is a Vertex traffic-split."),
-        ("b", "Runbooks committed: breaker reset, model rollback, secret rotation, coverage audit, BQ schema migration, endpoint scale-down."),
-    ]
-    body_box(s, prs, left_col,
-             top=Inches(1.20), left=Inches(0.55),
-             width=Inches(6.2), font_size=11, line_spacing=1.15)
-    body_box(s, prs, right_col,
-             top=Inches(1.20), left=Inches(6.95),
-             width=Inches(6.2), font_size=11, line_spacing=1.15)
+
+    # 2x2 grid
+    cw = (prs.slide_width - Inches(1.1) - Inches(0.25)) / 2
+    ch = Inches(2.65)
+    left0 = Inches(0.55); top0 = Inches(1.20); gap = Inches(0.25)
+
+    for i, (label, color, items) in enumerate(blocks):
+        row = i // 2; col = i % 2
+        x = left0 + col * (cw + gap)
+        y = top0 + row * (ch + gap)
+        card = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, y, cw, ch)
+        card.adjustments[0] = 0.05
+        fill(card, WHITE)
+        card.line.color.rgb = RULE; card.line.width = Pt(0.75)
+
+        # Big check badge
+        badge = s.shapes.add_shape(MSO_SHAPE.OVAL,
+                                    x + Inches(0.25), y + Inches(0.25),
+                                    Inches(0.6), Inches(0.6))
+        fill(badge, color)
+        tf = badge.text_frame
+        tf.margin_left = Pt(0); tf.margin_right = Pt(0)
+        tf.margin_top = Pt(0); tf.margin_bottom = Pt(0)
+        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+        run(p, "✓", size=22, bold=True, color=WHITE)
+
+        # Heading
+        hb = s.shapes.add_textbox(x + Inches(1.00), y + Inches(0.30),
+                                  cw - Inches(1.20), Inches(0.5))
+        p = hb.text_frame.paragraphs[0]
+        run(p, label, size=18, bold=True, color=NAVY)
+
+        # Items
+        ib = s.shapes.add_textbox(x + Inches(0.25), y + Inches(1.00),
+                                  cw - Inches(0.50), ch - Inches(1.10))
+        tf = ib.text_frame; tf.word_wrap = True
+        for j, it in enumerate(items):
+            pp = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
+            pp.line_spacing = 1.25; pp.space_after = Pt(3)
+            run(pp, "•  ", size=11, bold=True, color=color)
+            run(pp, it, size=10, color=SLATE)
+
     footer(s, prs, 7)
 
 
@@ -545,23 +741,65 @@ def slide_roadmap(prs):
 
 
 def slide_commercials(prs):
-    """What we need, in priority order. OQs named."""
+    """Three asks, pyramid hierarchy. The first is critical-path; the
+    others wait their turn."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
     title_bar(s, prs, "What we need from you",
-              eyebrow="Next steps to unlock value")
-    body_box(s, prs, [
-        ("h", "Five decisions — in priority order"),
-        ("b", "OQ-11 · GA4 access. Read on the Credit Cards analytics_<property> BigQuery export. Critical-path: every week this slides is a week off the cutover."),
-        ("b", "OQ-12 · GA4 event taxonomy. Confirm which event_name values map to 'calculator used', 'guide read', 'card compare'. One working session."),
-        ("b", "OQ-13 · Click → cookie join key. Server-side CM360+GA4 merge, first-party cookie pass-through, or no-join. Decides whether Phoebe lifts the live model."),
-        ("b", "OQ-1 · GCP project. Client's own, or a namespaced env in our msm-rpc project — the deploy-client-cc CD job is wired and gated on the decision."),
-        ("b", "Compliance sign-off on ADRs 0004 (FCA boundary) and 0005 (GA4 PII). Two named contacts: one data owner + one engineering lead."),
-        ("h", "What you also get"),
-        ("b", "The Car Insurance failure summary from Ryan refines the 'designed against' tile from speculation to confirmed mitigations."),
-        ("b", "Read-only access to the live staging environment for your team to probe."),
-        ("h", "What you get at the end"),
-        ("b", "A production service on your data, with your on-call team in the cockpit and a signed handover by end-August 2026."),
-    ], font_size=12)
+              eyebrow="Three asks, in priority order")
+
+    asks = [
+        ("1", "Critical path", TEAL,
+         "GA4 access to your Credit Cards property",
+         "OQ-11 — read on the analytics_<property> BigQuery export. Every week this slides is a week off cutover."),
+        ("2", "Working session", ACCENT,
+         "Confirm the GA4 event taxonomy + click→cookie join key",
+         "OQ-12 + OQ-13 — one 60-minute call validates our best-current-guess mappings against your real events."),
+        ("3", "Sign-offs", GREEN,
+         "GCP project decision + compliance sign-off on ADRs 0004 and 0005",
+         "OQ-1 — client project or namespaced env. The CD job is wired and gated. Two named contacts: one data owner + one engineering lead."),
+    ]
+
+    # Stacked rows
+    top0 = Inches(1.25)
+    row_h = Inches(1.30)
+    gap = Inches(0.20)
+    for i, (num, eyebrow, color, head, sub) in enumerate(asks):
+        y = top0 + i * (row_h + gap)
+        # Number block
+        nb = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
+                                Inches(0.55), y, Inches(1.10), row_h)
+        nb.adjustments[0] = 0.10
+        fill(nb, color)
+        tf = nb.text_frame
+        tf.margin_left = Pt(0); tf.margin_right = Pt(0)
+        tf.margin_top = Pt(0); tf.margin_bottom = Pt(0)
+        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+        run(p, num, size=44, bold=True, color=WHITE)
+
+        # Body
+        bb = s.shapes.add_textbox(Inches(1.85), y + Inches(0.10),
+                                  prs.slide_width - Inches(2.45), row_h - Inches(0.20))
+        tf = bb.text_frame; tf.word_wrap = True
+        p = tf.paragraphs[0]; p.line_spacing = 1.10
+        run(p, eyebrow.upper() + "    ", size=10, bold=True, color=color)
+        run(p, head, size=18, bold=True, color=NAVY)
+        p2 = tf.add_paragraph(); p2.space_before = Pt(8); p2.line_spacing = 1.30
+        run(p2, sub, size=11, color=SLATE)
+
+    # Bottom note
+    bar = s.shapes.add_shape(MSO_SHAPE.RECTANGLE,
+                             Inches(0.55), Inches(6.40),
+                             prs.slide_width - Inches(1.1), Inches(0.55))
+    fill(bar, NAVY)
+    tf = bar.text_frame
+    tf.margin_left = Inches(0.20); tf.margin_top = Inches(0.12)
+    tf.word_wrap = True
+    p = tf.paragraphs[0]
+    run(p, "WHAT YOU GET    ", size=10, bold=True, color=ACCENT)
+    run(p, "A production service on your data, your on-call team in the cockpit, signed handover by end-August 2026.",
+        size=11, color=LIGHT)
+
     footer(s, prs, 10)
 
 
@@ -569,22 +807,31 @@ def slide_thanks(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     bg = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, prs.slide_width, prs.slide_height)
     fill(bg, NAVY)
-    band = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(3.0),
-                              prs.slide_width, Inches(0.08))
+    band = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(3.6),
+                              prs.slide_width, Inches(0.10))
     fill(band, ACCENT)
 
-    t = s.shapes.add_textbox(Inches(0.7), Inches(2.0), Inches(12), Inches(1.2))
+    # Eyebrow
+    eb = s.shapes.add_textbox(Inches(0.7), Inches(1.6), Inches(12), Inches(0.4))
+    p = eb.text_frame.paragraphs[0]
+    run(p, "OVER TO YOU", size=13, bold=True, color=ACCENT)
+
+    # Hero
+    t = s.shapes.add_textbox(Inches(0.7), Inches(2.1), Inches(12), Inches(1.4))
     p = t.text_frame.paragraphs[0]
-    run(p, "Questions?", size=54, bold=True, color=WHITE)
+    run(p, "Let's get the data flowing.", size=60, bold=True, color=WHITE)
 
-    sub = s.shapes.add_textbox(Inches(0.7), Inches(3.4), Inches(12), Inches(1.0))
-    p = sub.text_frame.paragraphs[0]
-    run(p, "Predictive RPC Estimator — Credit Cards MVP  ·  Live demo  ·  Q&A",
-        size=18, color=LIGHT)
+    # Subline
+    sub = s.shapes.add_textbox(Inches(0.7), Inches(4.0), Inches(12), Inches(1.5))
+    tf = sub.text_frame; tf.word_wrap = True
+    p = tf.paragraphs[0]; p.line_spacing = 1.30
+    run(p, "GA4 access this week. Event taxonomy next. ", size=20, color=LIGHT)
+    run(p, "Cutover end-August.", size=20, bold=True, color=ACCENT)
 
+    # Foot
     foot = s.shapes.add_textbox(Inches(0.7), Inches(6.7), Inches(12), Inches(0.4))
     p = foot.text_frame.paragraphs[0]
-    run(p, f"Live dashboard  ·  {DEMO_URL}", size=11, color=ACCENT)
+    run(p, f"Live dashboard  ·  {DEMO_URL}", size=11, color=LIGHT)
 
 
 def main():
