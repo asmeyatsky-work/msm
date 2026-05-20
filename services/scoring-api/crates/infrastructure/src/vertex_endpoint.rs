@@ -66,14 +66,27 @@ impl ModelEndpoint for VertexEndpoint {
             .json(&body)
             .send()
             .await
-            .map_err(|e| PortError::Upstream(e.to_string()))?;
-        if !resp.status().is_success() {
-            return Err(PortError::Upstream(format!("status={}", resp.status())));
+            .map_err(|e| {
+                PortError::Upstream(crate::error::reqwest_chain("vertex send", &e))
+            })?;
+        let status = resp.status();
+        let bytes = resp.bytes().await.map_err(|e| {
+            PortError::Upstream(crate::error::reqwest_chain("vertex body", &e))
+        })?;
+        if !status.is_success() {
+            return Err(PortError::Upstream(format!(
+                "vertex status={} body={}",
+                status,
+                crate::error::snippet(&bytes)
+            )));
         }
-        let parsed: serde_json::Value = resp
-            .json()
-            .await
-            .map_err(|e| PortError::Upstream(e.to_string()))?;
+        let parsed: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| {
+            PortError::Upstream(format!(
+                "vertex json decode: {} (body={})",
+                e,
+                crate::error::snippet(&bytes)
+            ))
+        })?;
         // Vertex AI returns {"predictions": [x]} for a regression endpoint.
         let raw = parsed
             .pointer("/predictions/0")

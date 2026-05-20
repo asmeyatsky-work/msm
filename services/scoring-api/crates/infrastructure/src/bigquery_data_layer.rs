@@ -89,14 +89,33 @@ impl DataLayerRevenue for BigQueryDataLayer {
             .json(&body)
             .send()
             .await
-            .map_err(|e| PortError::Upstream(e.to_string()))?;
-        if !resp.status().is_success() {
-            return Err(PortError::Upstream(format!("bq status={}", resp.status())));
+            .map_err(|e| PortError::Upstream(crate::error::reqwest_chain("bq send", &e)))?;
+        let status = resp.status();
+        let ctype = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+        let bytes = resp.bytes().await.map_err(|e| {
+            PortError::Upstream(crate::error::reqwest_chain("bq body", &e))
+        })?;
+        if !status.is_success() {
+            return Err(PortError::Upstream(format!(
+                "bq status={} ctype={} body={}",
+                status,
+                ctype,
+                crate::error::snippet(&bytes)
+            )));
         }
-        let parsed: serde_json::Value = resp
-            .json()
-            .await
-            .map_err(|e| PortError::Upstream(e.to_string()))?;
+        let parsed: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| {
+            PortError::Upstream(format!(
+                "bq json decode: {} (ctype={}, body={})",
+                e,
+                ctype,
+                crate::error::snippet(&bytes)
+            ))
+        })?;
         // rows[0].f[0].v is the revenue value from `jobs.query`.
         let raw = parsed
             .pointer("/rows/0/f/0/v")

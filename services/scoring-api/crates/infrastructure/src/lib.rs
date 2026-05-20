@@ -13,6 +13,7 @@
 #![forbid(unsafe_code)]
 
 pub mod bigquery_data_layer;
+pub mod error;
 pub mod gcp_auth;
 pub mod pubsub_audit;
 pub mod pubsub_predictions;
