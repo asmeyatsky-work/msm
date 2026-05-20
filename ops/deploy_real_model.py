@@ -21,6 +21,10 @@ DATASET  = "rpc_estimator_staging"
 BUCKET   = "msm-rpc-rpc-artifacts-staging"
 SECRET   = "vertex-endpoint-url-staging"
 MODEL_ID = "rpc-estimator"
+# Reuse the existing endpoint to avoid spinning up a second billable endpoint
+# (memory: "no spend-increasing scale-up"). New model is added with 100%
+# traffic; old deployedModels are undeployed after the new one is live.
+ENDPOINT_ID = "4471390533746425856"
 
 # Vertex AI prebuilt XGBoost serving container in europe-west2.
 SERVING_IMAGE = "europe-docker.pkg.dev/vertex-ai/prediction/xgboost-cpu.1-7:latest"
@@ -47,14 +51,21 @@ def main() -> None:
         SELECT
           hour_of_day, affinity_score, rpc_14d, rpc_60d,
           CAST(prior_applicant AS INT64) AS prior_applicant,
-          auction_pressure, visits_prev_30d, target_revenue
+          auction_pressure, visits_prev_30d,
+          CAST(phoebe_calculator_used AS INT64) AS phoebe_calculator_used,
+          phoebe_guides_read, phoebe_cards_compared, phoebe_session_engagement_s,
+          target_revenue
         FROM `{PROJECT}.{DATASET}.rpc_training_rows`
     """).to_dataframe()
     print(f"   n={len(df)}  mean(target)={df['target_revenue'].mean():.3f}")
 
+    # MUST match services/scoring-api/.../vertex_endpoint.rs payload order
+    # AND ops/explanation_metadata.json index_feature_mapping.
     feature_cols = [
         "hour_of_day", "affinity_score", "rpc_14d", "rpc_60d",
         "prior_applicant", "auction_pressure", "visits_prev_30d",
+        "phoebe_calculator_used", "phoebe_guides_read",
+        "phoebe_cards_compared", "phoebe_session_engagement_s",
     ]
     X = df[feature_cols].to_numpy(dtype=np.float32)
     y = df["target_revenue"].to_numpy(dtype=np.float32)
@@ -75,7 +86,11 @@ def main() -> None:
         # Vertex AI's xgboost-cpu.1-7 expects a file named `model.bst` under
         # the artifact_uri directory.
         path = Path(tmp) / "model.bst"
-        model.save_model(str(path))
+        # Use the booster API directly: XGBRegressor.save_model() pulls in the
+        # sklearn estimator wrapper, which broke between xgboost 1.7 (pinned to
+        # match the Vertex serving container) and sklearn>=1.5. The Vertex
+        # xgboost-cpu container only needs the booster artifact.
+        model.get_booster().save_model(str(path))
         blob_path = f"models/{MODEL_ID}/{int(time.time())}"
         gcs = storage.Client(project=PROJECT).bucket(BUCKET)
         gcs.blob(f"{blob_path}/model.bst").upload_from_filename(str(path))
@@ -119,33 +134,49 @@ def main() -> None:
     registered.wait()
     print(f"   model resource = {registered.resource_name}")
 
-    # ---------- 5. Create endpoint + deploy model ----------
-    step("5/6 deploy to endpoint (slowest step; ~8 min)")
-    endpoint = aiplatform.Endpoint.create(display_name=f"{MODEL_ID}-endpoint")
+    # ---------- 5. Deploy new version to the EXISTING endpoint ----------
+    step(f"5/6 deploy to existing endpoint {ENDPOINT_ID} (slowest step; ~8 min)")
+    endpoint = aiplatform.Endpoint(
+        endpoint_name=f"projects/{PROJECT}/locations/{REGION}/endpoints/{ENDPOINT_ID}"
+    )
+    pre_deployed = list(endpoint.list_models())
+    print(f"   existing deployedModels: {[d.id for d in pre_deployed]}")
     endpoint.deploy(
         model=registered,
-        deployed_model_display_name=f"{MODEL_ID}-deploy",
+        deployed_model_display_name=f"{MODEL_ID}-deploy-{int(time.time())}",
         machine_type="e2-standard-2",
         min_replica_count=1,
         max_replica_count=1,
-        traffic_percentage=100,
+        traffic_percentage=100,  # SDK rebalances traffic to 100% new
     )
+    # Undeploy the previous deployedModels after the new one is serving 100%
+    # so we don't keep paying for two replicas.
+    for old in pre_deployed:
+        print(f"   undeploying old deployedModel id={old.id}")
+        endpoint.undeploy(deployed_model_id=old.id)
     print(f"   endpoint resource = {endpoint.resource_name}")
-    predict_url = (
-        f"https://{REGION}-aiplatform.googleapis.com/v1/{endpoint.resource_name}:predict"
-    )
-    print(f"   predict_url = {predict_url}")
 
-    # ---------- 6. Update Secret Manager ----------
-    step("6/6 update vertex-endpoint-url secret")
+    # ---------- 6. Secret URL is unchanged (same endpoint) ----------
+    step("6/6 verify secret URL still points at this endpoint")
+    expected = (
+        f"https://{REGION}-aiplatform.googleapis.com/v1/"
+        f"projects/{PROJECT}/locations/{REGION}/endpoints/{ENDPOINT_ID}:predict"
+    )
     sm = secretmanager.SecretManagerServiceClient()
-    parent = f"projects/{PROJECT}/secrets/{SECRET}"
-    version = sm.add_secret_version(
-        request={"parent": parent, "payload": {"data": predict_url.encode("utf-8")}},
-    )
-    print(f"   new secret version: {version.name}")
+    current = sm.access_secret_version(
+        request={"name": f"projects/{PROJECT}/secrets/{SECRET}/versions/latest"}
+    ).payload.data.decode("utf-8").strip()
+    if current != expected:
+        print(f"   secret drift — updating to {expected}")
+        sm.add_secret_version(request={
+            "parent": f"projects/{PROJECT}/secrets/{SECRET}",
+            "payload": {"data": expected.encode("utf-8")},
+        })
+    else:
+        print(f"   secret OK ({expected})")
 
-    print("\n✓ done. Restart scoring-api to pick up the new URL:")
+    print("\n✓ done. scoring-api reads the endpoint URL at boot, so no restart")
+    print("  is needed if the secret didn't change. If it did, force a new revision:")
     print(f"   gcloud run services update scoring-api-staging "
           f"--project={PROJECT} --region={REGION} --update-labels=deploy=$(date +%s)")
 
