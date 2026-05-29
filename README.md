@@ -149,7 +149,8 @@ Raw results in `ops/perf/`.
 │   ├── data-contract.md
 │   ├── runbooks/
 │   ├── client-demo-deck.pptx         # Client-facing demo deck
-│   └── searce-build-overview.pptx    # Searce-internal build deck
+│   ├── searce-build-overview.pptx    # Searce-internal build deck
+│   └── agentic-architecture-deck.pptx # Reasoning-agents architecture + demo runbook
 ├── infra/terraform/                  # GCP IaC (cloud_run.tf, monitoring.tf, wif.tf, envs/)
 ├── mcp-servers/                      # One per bounded context (§3.5)
 │   ├── mlops-mcp/
