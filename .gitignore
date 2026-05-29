@@ -15,4 +15,7 @@ target/
 contract-tests/.out/
 .claude/
 .venv-deploy-model/
+**/.venv/
+**/.coverage
+**/*.egg-info/
 .vite/

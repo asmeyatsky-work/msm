@@ -1,0 +1,53 @@
+{
+  "eval_set_id": "breaker_triage_v1",
+  "name": "Breaker triage agent — escalation behaviour",
+  "description": "ADK AgentEvaluator eval set (ADR 0006). Asserts the triage agent calls the read tools and proposes the right escalation class. Thresholds live in test_triage_eval.py; tune to the installed google-adk version.",
+  "eval_cases": [
+    {
+      "eval_id": "sustained_null_rate_breach_pages",
+      "conversation": [
+        {
+          "invocation_id": "inv-1",
+          "user_content": {
+            "role": "user",
+            "parts": [{"text": "{\"kind\": \"null_or_zero_rate\", \"value\": 0.08, \"threshold\": 0.03, \"occurred_at_ms\": 1717000000000}"}]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [{"text": "{\"escalate\": true, \"severity\": \"sev1\", \"action\": \"page_oncall\", \"cause_hypothesis\": \"upstream feature pipeline emitting nulls\", \"justification\": \"null_or_zero_rate 8% is well above the 3% threshold and the breaker tripped\"}"}]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "breaker_verdict", "args": {"kind": "null_or_zero_rate", "value": 0.08, "threshold": 0.03, "occurred_at_ms": 1717000000000}},
+              {"name": "recent_signals", "args": {"window_ms": 300000}}
+            ]
+          }
+        }
+      ],
+      "session_input": {"app_name": "breaker-triage", "user_id": "breaker", "state": {}}
+    },
+    {
+      "eval_id": "transient_latency_blip_annotates",
+      "conversation": [
+        {
+          "invocation_id": "inv-2",
+          "user_content": {
+            "role": "user",
+            "parts": [{"text": "{\"kind\": \"latency\", \"value\": 1.05, \"threshold\": 1.0, \"occurred_at_ms\": 1717000300000}"}]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [{"text": "{\"escalate\": true, \"severity\": \"sev3\", \"action\": \"annotate\", \"cause_hypothesis\": \"brief latency blip near the SLO\", \"justification\": \"latency 1.05 only marginally over 1.0 threshold, no correlated signals\"}"}]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "breaker_verdict", "args": {"kind": "latency", "value": 1.05, "threshold": 1.0, "occurred_at_ms": 1717000300000}},
+              {"name": "recent_signals", "args": {"window_ms": 300000}}
+            ]
+          }
+        }
+      ],
+      "session_input": {"app_name": "breaker-triage", "user_id": "breaker", "state": {}}
+    }
+  ]
+}
