@@ -1,5 +1,10 @@
 # bounds-calibration — scheduled Cloud Run Job. Reads rpc_predictions
 # percentiles, proposes new min/max bounds as a GitHub PR against runtime config.
+#
+# Also ships the bounds calibration agent (ADR 0005): an ADK agent that
+# classifies a proposed change (genuine shift vs transient/noise) and authors the
+# PR rationale. Agent deps are an optional `agent` extra so the scheduled Job
+# image stays lean and adk-free.
 [project]
 name = "msm-bounds-calibration"
 version = "0.1.0"
@@ -12,7 +17,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Calibration agent runtime (Vertex Agent Engine, ADR 0005/0007).
+agent = ["google-adk>=1.0", "google-cloud-aiplatform>=1.60"]
 dev = ["pytest>=8", "pytest-cov>=5", "import-linter>=2.0"]
+# Eval track (ADR 0006) — agent-eval CI job only.
+eval = ["google-adk>=1.0", "pytest-asyncio>=0.23"]
 
 [tool.pytest.ini_options]
 addopts = "--cov=msm_bounds"

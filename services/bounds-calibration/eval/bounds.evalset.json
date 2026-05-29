@@ -1,0 +1,55 @@
+{
+  "eval_set_id": "bounds_calibration_v1",
+  "name": "Bounds calibration agent — genuine shift vs transient/noise",
+  "description": "ADK AgentEvaluator eval set (ADR 0006). Asserts the agent opens a PR only for a sustained genuine shift and declines transient spikes / data-quality artefacts. Thresholds in test_bounds_eval.py; tune to installed google-adk version.",
+  "eval_cases": [
+    {
+      "eval_id": "sustained_shift_opens_pr",
+      "conversation": [
+        {
+          "invocation_id": "inv-1",
+          "user_content": {
+            "role": "user",
+            "parts": [{"text": "{\"lookback_hours\": 168, \"current_min\": 0.01, \"current_max\": 500.0}"}]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [{"text": "{\"open_pr\": true, \"change_class\": \"genuine_shift\", \"confidence\": 0.86, \"pr_title\": \"Recalibrate RPC bounds to [0.5, 120.0]\", \"rationale\": \"p99 rose ~40% and held across 6 of 7 daily buckets with n>100k; raising max prevents valid high-RPC predictions being clamped to tCPA.\", \"justification\": \"sustained multi-bucket shift, adequate sample\"}"}]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "candidate_bounds", "args": {"lookback_hours": 168, "current_min": 0.01, "current_max": 500.0}},
+              {"name": "current_sample", "args": {"lookback_hours": 168}},
+              {"name": "distribution_history", "args": {"lookback_hours": 168, "buckets": 7}}
+            ]
+          }
+        }
+      ],
+      "session_input": {"app_name": "bounds-calibration", "user_id": "bounds", "state": {}}
+    },
+    {
+      "eval_id": "single_bucket_spike_declines",
+      "conversation": [
+        {
+          "invocation_id": "inv-2",
+          "user_content": {
+            "role": "user",
+            "parts": [{"text": "{\"lookback_hours\": 168, \"current_min\": 0.01, \"current_max\": 500.0}"}]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [{"text": "{\"open_pr\": false, \"change_class\": \"transient_spike\", \"confidence\": 0.78, \"pr_title\": \"\", \"rationale\": \"\", \"justification\": \"p99 elevated in only the most recent bucket; prior 6 buckets flat — looks transient, not worth churning bounds.\"}"}]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "candidate_bounds", "args": {"lookback_hours": 168, "current_min": 0.01, "current_max": 500.0}},
+              {"name": "current_sample", "args": {"lookback_hours": 168}},
+              {"name": "distribution_history", "args": {"lookback_hours": 168, "buckets": 7}}
+            ]
+          }
+        }
+      ],
+      "session_input": {"app_name": "bounds-calibration", "user_id": "bounds", "state": {}}
+    }
+  ]
+}
