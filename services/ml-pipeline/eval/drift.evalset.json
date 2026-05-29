@@ -1,0 +1,53 @@
+{
+  "eval_set_id": "drift_triage_v1",
+  "name": "Drift triage agent — retrain vs alert vs noop",
+  "description": "ADK AgentEvaluator eval set (ADR 0006). Asserts the agent retrains only on a sustained breach, alerts on ambiguous warns, and noops on benign/seasonal drift. Thresholds in test_drift_eval.py; tune to installed google-adk version.",
+  "eval_cases": [
+    {
+      "eval_id": "sustained_breach_retrains",
+      "conversation": [
+        {
+          "invocation_id": "inv-1",
+          "user_content": {
+            "role": "user",
+            "parts": [{"text": "{\"model_id\": \"rpc\", \"baseline_window_ms\": 1714000000000, \"current_window_ms\": 1716000000000}"}]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [{"text": "{\"action\": \"retrain\", \"severity\": \"breach\", \"drivers\": [\"affinity_score\", \"auction_pressure\"], \"retrain_lookback_days\": 60, \"justification\": \"affinity_score PSI 0.41 and auction_pressure 0.33 both breach (>=0.25); live model is 90d stale, so a 60d retrain should recover calibration.\"}"}]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "drift_scores", "args": {"baseline_window_ms": 1714000000000, "current_window_ms": 1716000000000}},
+              {"name": "latest_model", "args": {"model_id": "rpc"}}
+            ]
+          }
+        }
+      ],
+      "session_input": {"app_name": "drift-triage", "user_id": "ml", "state": {}}
+    },
+    {
+      "eval_id": "single_warn_alerts",
+      "conversation": [
+        {
+          "invocation_id": "inv-2",
+          "user_content": {
+            "role": "user",
+            "parts": [{"text": "{\"model_id\": \"rpc\", \"baseline_window_ms\": 1714000000000, \"current_window_ms\": 1716000000000}"}]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [{"text": "{\"action\": \"alert\", \"severity\": \"warn\", \"drivers\": [\"device\"], \"retrain_lookback_days\": 0, \"justification\": \"device PSI 0.16 is in warn only; single feature, no breach — surface for a human to watch rather than auto-retrain.\"}"}]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "drift_scores", "args": {"baseline_window_ms": 1714000000000, "current_window_ms": 1716000000000}},
+              {"name": "latest_model", "args": {"model_id": "rpc"}}
+            ]
+          }
+        }
+      ],
+      "session_input": {"app_name": "drift-triage", "user_id": "ml", "state": {}}
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 """Ports (§3.2): every external dependency is an interface implemented in infrastructure."""
 from __future__ import annotations
 from typing import Protocol, Sequence
-from msm_ml.domain import FeatureVector, ModelVersion, DriftScore
+from msm_ml.domain import FeatureVector, ModelVersion, DriftScore, DriftTriage
 
 
 class FeatureRepo(Protocol):
@@ -21,3 +21,9 @@ class ModelRegistry(Protocol):
 
 class DriftMonitor(Protocol):
     def score(self, baseline_window_ms: int, current_window_ms: int) -> Sequence[DriftScore]: ...
+
+
+class AlertSink(Protocol):
+    """Surface a drift triage to humans (ALERT action). Called only by the
+    deterministic TriageDrift use case after a DriftTriage validates (§4)."""
+    def emit(self, triage: "DriftTriage") -> None: ...
