@@ -346,9 +346,11 @@ def slide_architecture(prs):
             p2 = tf.add_paragraph(); p2.line_spacing = 1.15
             run(p2, sub, size=9, color=SLATE)
         if i < n - 1:
-            arrow_y = top + lane_h / 2
-            ln = s.shapes.add_connector(2, x + lane_w + Pt(2), arrow_y,
-                                        x + lane_w + margin - Pt(2), arrow_y)
+            # Integer EMU only — fractional coords from float division make
+            # add_connector emit invalid OOXML (PowerPoint flags it corrupt).
+            arrow_y = int(top + lane_h / 2)
+            ln = s.shapes.add_connector(2, int(x + lane_w + Pt(2)), arrow_y,
+                                        int(x + lane_w + margin - Pt(2)), arrow_y)
             ln.line.color.rgb = MUTED; ln.line.width = Pt(2)
     footer(s, prs, 5)
 
