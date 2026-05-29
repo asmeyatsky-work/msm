@@ -11,8 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from msm_ml.domain import DriftAction, DriftTriage, ModelVersion
-from .train_model import TrainModel
-from .ports import AlertSink
+from .ports import AlertSink, Trainer
 
 _MS_PER_DAY = 86_400_000
 
@@ -25,7 +24,7 @@ class TriageDispatch:
 
 
 class TriageDrift:
-    def __init__(self, train: TrainModel, alert: AlertSink) -> None:
+    def __init__(self, train: Trainer, alert: AlertSink) -> None:
         self._train = train
         self._alert = alert
 

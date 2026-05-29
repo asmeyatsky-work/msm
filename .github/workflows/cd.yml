@@ -36,6 +36,9 @@ jobs:
       image_ml_pipeline:    ${{ steps.meta.outputs.ml_pipeline }}
       image_mock_vertex:    ${{ steps.meta.outputs.mock_vertex }}
       image_dashboard:      ${{ steps.meta.outputs.dashboard }}
+      image_breaker_agent:  ${{ steps.meta.outputs.breaker_agent }}
+      image_bounds_agent:   ${{ steps.meta.outputs.bounds_agent }}
+      image_drift_agent:    ${{ steps.meta.outputs.drift_agent }}
     steps:
       - uses: actions/checkout@v4
       - id: sha
@@ -64,6 +67,9 @@ jobs:
           echo "ml_pipeline=${base}/ml-pipeline:${SHA}"       >> "$GITHUB_OUTPUT"
           echo "mock_vertex=${base}/mock-vertex:${SHA}"       >> "$GITHUB_OUTPUT"
           echo "dashboard=${base}/dashboard:${SHA}"           >> "$GITHUB_OUTPUT"
+          echo "breaker_agent=${base}/breaker-agent:${SHA}"   >> "$GITHUB_OUTPUT"
+          echo "bounds_agent=${base}/bounds-agent:${SHA}"     >> "$GITHUB_OUTPUT"
+          echo "drift_agent=${base}/drift-agent:${SHA}"       >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -99,6 +105,20 @@ jobs:
       - name: build dashboard
         uses: docker/build-push-action@v6
         with: { context: dashboard, push: true, tags: "${{ steps.meta.outputs.dashboard }}" }
+
+      # Reasoning agents (ADR 0005) — separate images from the deterministic
+      # service/job images (Dockerfile.agent installs the agent extras + uvicorn).
+      - name: build breaker-agent
+        uses: docker/build-push-action@v6
+        with: { context: services/breaker-automation, file: services/breaker-automation/Dockerfile.agent, push: true, tags: "${{ steps.meta.outputs.breaker_agent }}" }
+
+      - name: build bounds-agent
+        uses: docker/build-push-action@v6
+        with: { context: services/bounds-calibration, file: services/bounds-calibration/Dockerfile.agent, push: true, tags: "${{ steps.meta.outputs.bounds_agent }}" }
+
+      - name: build drift-agent
+        uses: docker/build-push-action@v6
+        with: { context: services/ml-pipeline, file: services/ml-pipeline/Dockerfile.agent, push: true, tags: "${{ steps.meta.outputs.drift_agent }}" }
 
   deploy-staging:
     needs: build-push
@@ -201,6 +221,12 @@ jobs:
           TF_VAR_image_ml_pipeline:    ${{ needs.build-push.outputs.image_ml_pipeline }}
           TF_VAR_image_mock_vertex:    ${{ needs.build-push.outputs.image_mock_vertex }}
           TF_VAR_image_dashboard:      ${{ needs.build-push.outputs.image_dashboard }}
+          # Reasoning agents (ADR 0005) — opt-in via repo var DEPLOY_AGENTS=true.
+          # Defaults to false so nothing deploys (or costs) until flipped on.
+          TF_VAR_deploy_agents:        ${{ vars.DEPLOY_AGENTS || 'false' }}
+          TF_VAR_image_breaker_agent:  ${{ needs.build-push.outputs.image_breaker_agent }}
+          TF_VAR_image_bounds_agent:   ${{ needs.build-push.outputs.image_bounds_agent }}
+          TF_VAR_image_drift_agent:    ${{ needs.build-push.outputs.image_drift_agent }}
         run: |
           terraform apply -auto-approve -lock-timeout=5m -var-file=envs/staging.tfvars
 

@@ -73,10 +73,19 @@ async def run_triage(model_id: str, baseline_window_ms: int, current_window_ms: 
     output = DriftTriageOutput.model_validate(raw if isinstance(raw, dict) else json.loads(raw))
     triage = output.to_domain()  # §4 gate — raises before retrain/alert
 
-    # 4. Deterministic dispatch.
-    train = TrainModel(
-        features=BigQueryFeatureRepo(_PROJECT, _DATASET),
-        trainer=XGBoostTrainer(),
-        registry=_registry,
-    )
+    # 4. Deterministic dispatch. RETRAIN fires the existing ml-pipeline-train
+    # Job when ML_TRAIN_JOB is set (Cloud Run deploy); otherwise trains in-process.
+    train_job = os.environ.get("ML_TRAIN_JOB")
+    if train_job:
+        from msm_ml.infrastructure.cloud_run_trainer import CloudRunJobTrainModel
+        train = CloudRunJobTrainModel(
+            _PROJECT, _REGION, train_job,
+            dataset=_DATASET, staging_bucket=os.environ.get("STAGING_BUCKET", ""),
+        )
+    else:
+        train = TrainModel(
+            features=BigQueryFeatureRepo(_PROJECT, _DATASET),
+            trainer=XGBoostTrainer(),
+            registry=_registry,
+        )
     return TriageDrift(train, LogAlertSink()).execute(model_id, triage, now_ms)

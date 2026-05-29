@@ -27,3 +27,11 @@ class AlertSink(Protocol):
     """Surface a drift triage to humans (ALERT action). Called only by the
     deterministic TriageDrift use case after a DriftTriage validates (§4)."""
     def emit(self, triage: "DriftTriage") -> None: ...
+
+
+class Trainer(Protocol):
+    """Produces a new registered model version for a training window. Satisfied
+    by the in-process TrainModel and by an adapter that triggers the existing
+    ml-pipeline-train Cloud Run Job (returns a result with .model_version /
+    .n_rows). Lets TriageDrift dispatch RETRAIN without knowing which."""
+    def execute(self, model_id: str, window_start_ms: int, window_end_ms: int): ...

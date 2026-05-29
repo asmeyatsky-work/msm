@@ -19,8 +19,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Drift triage agent runtime (Vertex Agent Engine, ADR 0005/0007).
-agent = ["google-adk>=1.0"]
+# Drift triage agent runtime (Cloud Run service, ADR 0005/0007).
+agent = [
+    "google-adk>=1.0", "google-cloud-run>=0.10",
+    "fastapi>=0.110", "uvicorn>=0.29",
+]
 # Eval track (ADR 0006) — agent-eval CI job only.
 eval = ["google-adk>=1.0", "pytest-asyncio>=0.23", "pytest-rerunfailures>=14"]
 dev = [
