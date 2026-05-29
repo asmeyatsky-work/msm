@@ -53,7 +53,9 @@ def fill(shape, color):
 
 
 def line(slide, x1, y1, x2, y2, color=RULE, weight=0.75):
-    ln = slide.shapes.add_connector(1, x1, y1, x2, y2)
+    # Integer EMU only — add_connector does not round, and fractional EMU is
+    # invalid OOXML (PowerPoint flags the file corrupt).
+    ln = slide.shapes.add_connector(1, int(x1), int(y1), int(x2), int(y2))
     ln.line.color.rgb = color
     ln.line.width = Pt(weight)
     return ln
@@ -419,9 +421,9 @@ def slide_architecture(prs):
 
         # Arrow to next lane
         if i < n - 1:
-            arrow_x1 = x + lane_w + Pt(2)
-            arrow_x2 = x + lane_w + margin - Pt(2)
-            arrow_y = top + lane_h / 2
+            arrow_x1 = int(x + lane_w + Pt(2))
+            arrow_x2 = int(x + lane_w + margin - Pt(2))
+            arrow_y = int(top + lane_h / 2)
             ln = s.shapes.add_connector(2, arrow_x1, arrow_y, arrow_x2, arrow_y)
             ln.line.color.rgb = MUTED; ln.line.width = Pt(2)
 
