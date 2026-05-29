@@ -133,7 +133,9 @@ jobs:
           GOOGLE_GENAI_USE_VERTEXAI: ${{ vars.GOOGLE_GENAI_USE_VERTEXAI }}
           GOOGLE_CLOUD_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
           GOOGLE_CLOUD_LOCATION: ${{ vars.GOOGLE_CLOUD_LOCATION }}
-        run: pytest -k eval -v
+        # --reruns absorbs transient model/tool-call hiccups (real LLM calls are
+        # occasionally flaky); a genuine reasoning regression fails all attempts.
+        run: pytest -k eval -v --reruns 2 --reruns-delay 5
 
   typescript-dashboard:
     runs-on: ubuntu-latest

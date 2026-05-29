@@ -21,7 +21,7 @@ dependencies = [
 agent = ["google-adk>=1.0", "google-cloud-aiplatform>=1.60"]
 dev = ["pytest>=8", "pytest-cov>=5", "import-linter>=2.0"]
 # Eval track (ADR 0006) — agent-eval CI job only.
-eval = ["google-adk>=1.0", "pytest-asyncio>=0.23"]
+eval = ["google-adk>=1.0", "pytest-asyncio>=0.23", "pytest-rerunfailures>=14"]
 
 [tool.pytest.ini_options]
 addopts = "--cov=msm_bounds"

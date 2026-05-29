@@ -22,7 +22,7 @@ dependencies = [
 # Drift triage agent runtime (Vertex Agent Engine, ADR 0005/0007).
 agent = ["google-adk>=1.0"]
 # Eval track (ADR 0006) — agent-eval CI job only.
-eval = ["google-adk>=1.0", "pytest-asyncio>=0.23"]
+eval = ["google-adk>=1.0", "pytest-asyncio>=0.23", "pytest-rerunfailures>=14"]
 dev = [
     "pytest>=8",
     "pytest-cov>=5",

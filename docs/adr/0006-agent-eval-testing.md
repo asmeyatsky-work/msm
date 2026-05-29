@@ -39,6 +39,18 @@ snapshot tests.
      and proposes the right escalation class.
    - Eval sets are version-controlled and reviewed like tests.
 
+## Implementation note
+
+The executable eval tests build each agent with **in-memory tool adapters seeded
+per scenario** and run it against the real model via `Runner`, asserting on the
+structured decision. This is preferred over ADK `AgentEvaluator` pointed at the
+production entrypoint because the production tools require live BigQuery/Pub-Sub —
+the in-memory harness keeps the eval hermetic (model credential only, no GCP) and
+lets each case supply its own evidence, so the assertion isolates *reasoning*.
+The committed `eval/*.evalset.json` files remain as golden trajectory references.
+Real LLM calls are occasionally flaky at the tool-call step, so the CI job runs
+with `--reruns`; a genuine reasoning regression fails every attempt.
+
 ## Consequences
 
 - **CI:** the deterministic track gates merges exactly as today (coverage check
