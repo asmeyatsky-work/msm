@@ -1,16 +1,17 @@
 """IncidentNotifier adapter. Layer: infrastructure. Implements
-application.IncidentNotifier. §4: every write emits an audit event
-(actor, action, before/after hash). Workload Identity only.
+application.IncidentNotifier. §4: Workload Identity; every write emits an audit
+event (actor, action, after-hash); no PII.
 
 Publishes escalations to the incident Pub/Sub topic (consumed by the on-call
-paging integration). Scaffolded: the publish call is a TODO against the real
-topic. `page` and `annotate` differ only by the `paging` flag on the payload so
-the downstream router decides whether to wake someone.
+paging integration). `page` and `annotate` differ only by the `paging`
+attribute, so the downstream router decides whether to wake someone.
 """
 from __future__ import annotations
+import hashlib
 import json
 
 import structlog
+from google.cloud import pubsub_v1
 
 from msm_breaker.application.ports import IncidentNotifier
 from msm_breaker.domain import AnomalyEvent, TriageDecision
@@ -19,9 +20,10 @@ _log = structlog.get_logger()
 
 
 class PubSubIncidentNotifier(IncidentNotifier):
-    def __init__(self, project: str, topic: str) -> None:
-        self._project = project
-        self._topic = topic
+    def __init__(self, project: str, topic: str, *, publish_timeout_s: float = 10.0) -> None:
+        self._publisher = pubsub_v1.PublisherClient()
+        self._topic_path = self._publisher.topic_path(project, topic)
+        self._publish_timeout_s = publish_timeout_s
 
     def page(self, decision: TriageDecision, event: AnomalyEvent) -> str:
         return self._emit(decision, event, paging=True)
@@ -41,11 +43,15 @@ class PubSubIncidentNotifier(IncidentNotifier):
             "anomaly_threshold": event.threshold,
             "occurred_at_ms": event.occurred_at_ms,
         }
-        # TODO(agentic-ops): publish to projects/{project}/topics/{topic} with a
-        # request timeout (§4) and emit the §4 audit event (actor=breaker-triage,
-        # action=escalate, after_hash=sha256(payload)).
-        incident_ref = f"pubsub://{self._topic}#{event.occurred_at_ms}"
-        _log.info("incident_escalation_stub", paging=paging,
-                  severity=decision.severity.value, ref=incident_ref,
-                  payload_bytes=len(json.dumps(payload)))
-        return incident_ref
+        data = json.dumps(payload, sort_keys=True).encode("utf-8")
+        after_hash = hashlib.sha256(data).hexdigest()
+        future = self._publisher.publish(
+            self._topic_path, data,
+            paging=str(paging).lower(), severity=decision.severity.value,
+        )
+        message_id = future.result(timeout=self._publish_timeout_s)  # §3.2 bounded
+        # §4 audit event: actor / action / after-hash, append-only via Cloud Logging.
+        _log.info("audit", actor="breaker-triage", action="escalate",
+                  paging=paging, after_hash=after_hash, message_id=message_id,
+                  correlation=f"anomaly:{event.occurred_at_ms}")
+        return f"pubsub://{self._topic_path}#{message_id}"

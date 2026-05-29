@@ -72,6 +72,69 @@ jobs:
           pip install pytest
           pytest src
 
+  python-breaker-automation:
+    # §2/§5 for the breaker service (incl. the triage agent, ADR 0005).
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: services/breaker-automation } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: install
+        run: |
+          pip install --upgrade "pip>=26.1"
+          pip install -e ".[dev]"
+      - name: layer enforcement (§2 import-linter)
+        run: lint-imports
+      - name: tests + coverage (§5)
+        run: pytest
+
+  python-bounds-calibration:
+    # §2/§5 for the bounds service (incl. the calibration agent, ADR 0005).
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: services/bounds-calibration } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: install
+        run: |
+          pip install --upgrade "pip>=26.1"
+          pip install -e ".[dev]"
+      - name: layer enforcement (§2 import-linter)
+        run: lint-imports
+      - name: tests + coverage (§5)
+        run: pytest
+
+  python-agent-eval:
+    # ADR 0006 eval track for the three reasoning agents. Self-skips when the
+    # model-credential secret is absent (the eval tests skip at module level),
+    # so it is safe to run everywhere; it exercises the eval sets only once
+    # GOOGLE_API_KEY (or Vertex vars) is configured in repo settings.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [breaker-automation, bounds-calibration, ml-pipeline]
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: install (eval extras)
+        run: |
+          pip install --upgrade "pip>=26.1"
+          pip install -e ".[dev,eval]"
+      - name: run eval track (skips without a model credential)
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_GENAI_USE_VERTEXAI: ${{ vars.GOOGLE_GENAI_USE_VERTEXAI }}
+          GOOGLE_CLOUD_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+          GOOGLE_CLOUD_LOCATION: ${{ vars.GOOGLE_CLOUD_LOCATION }}
+        run: pytest -k eval -v
+
   typescript-dashboard:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: dashboard } }

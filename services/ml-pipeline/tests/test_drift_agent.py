@@ -6,7 +6,7 @@ import pytest
 from msm_ml.domain import (
     DriftAction, DriftScore, DriftTriage, DriftVerdict, ModelVersion,
 )
-from msm_ml.application import DriftTriageOutput, TriageDrift, TrainModel
+from msm_ml.application import DriftTriageOutput, TriageDrift
 from msm_ml.application.drift_agent import build_drift_agent  # noqa: F401 (import smoke)
 from msm_ml.infrastructure.alert_sink import InMemoryAlertSink
 from msm_ml.infrastructure.drift_monitor import InMemoryDriftMonitor

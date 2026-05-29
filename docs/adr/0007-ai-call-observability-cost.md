@@ -48,6 +48,17 @@ cost must therefore be measured and bounded, not assumed negligible.
 - **Neutral:** model unit prices change; the price table is config, not code, and
   is reviewed when models are upgraded.
 
+## Note on code sharing
+
+The `after_model_callback` is duplicated as a small (~40-line, stdlib+structlog)
+`infrastructure/ai_call_log.py` in each of the three agent services rather than
+extracted to a shared `msm-agent-obs` package. This is deliberate: every service
+builds its image from its own local Docker context (`COPY src; pip install .`)
+and the repo has no shared-Python-lib precedent, so a cross-service path
+dependency would break the independent build/deploy model (and a registry-
+published lib is out of scope per the single-env constraint). If a fourth agent
+service appears, revisit with a published package + an ADR.
+
 ## Conflict handling (§0)
 
 No conflict. This operationalises a §6 clause that was previously dormant.
