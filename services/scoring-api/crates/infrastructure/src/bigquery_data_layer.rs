@@ -97,9 +97,10 @@ impl DataLayerRevenue for BigQueryDataLayer {
             .and_then(|v| v.to_str().ok())
             .unwrap_or("")
             .to_string();
-        let bytes = resp.bytes().await.map_err(|e| {
-            PortError::Upstream(crate::error::reqwest_chain("bq body", &e))
-        })?;
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| PortError::Upstream(crate::error::reqwest_chain("bq body", &e)))?;
         if !status.is_success() {
             return Err(PortError::Upstream(format!(
                 "bq status={} ctype={} body={}",

@@ -66,13 +66,12 @@ impl ModelEndpoint for VertexEndpoint {
             .json(&body)
             .send()
             .await
-            .map_err(|e| {
-                PortError::Upstream(crate::error::reqwest_chain("vertex send", &e))
-            })?;
+            .map_err(|e| PortError::Upstream(crate::error::reqwest_chain("vertex send", &e)))?;
         let status = resp.status();
-        let bytes = resp.bytes().await.map_err(|e| {
-            PortError::Upstream(crate::error::reqwest_chain("vertex body", &e))
-        })?;
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| PortError::Upstream(crate::error::reqwest_chain("vertex body", &e)))?;
         if !status.is_success() {
             return Err(PortError::Upstream(format!(
                 "vertex status={} body={}",
